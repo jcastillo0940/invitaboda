@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import InvitationCard1 from '@/Components/Invitations/InvitationCard1';
+import TemplateLoader from '@/Components/TemplateLoader';
 
 export default function Invitation({ event, guestGroup }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -86,11 +86,13 @@ export default function Invitation({ event, guestGroup }) {
                         animate={{ opacity: 1 }}
                         className="max-w-4xl mx-auto"
                     >
-                        {/* Renderizamos el componente de diseño elegido */}
+                        {/* Template dinámico — se resuelve por slug del diseño */}
                         <div className="relative z-10">
-                            <InvitationCard1
+                            <TemplateLoader
+                                slug={event.design?.template_name}
                                 data={designData}
                                 guestGroup={guestGroup}
+                                event={event}
                             />
                         </div>
 

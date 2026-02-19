@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Event;
 use App\Models\GuestGroup;
+use App\Models\Design;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
@@ -25,7 +26,8 @@ class EventController extends Controller
         $event->load('design');
 
         return Inertia::render('Events/Editor', [
-            'event' => $event
+            'event' => $event,
+            'designs' => Design::where('is_active', true)->get(['id', 'name', 'slug', 'thumbnail', 'is_premium']),
         ]);
     }
 

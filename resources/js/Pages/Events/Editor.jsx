@@ -1,12 +1,12 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
-import React, { useState, useEffect } from 'react';
-import InvitationCard1 from '@/Components/Invitations/InvitationCard1';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Music } from 'lucide-react';
+import { X, Music, CheckCircle2, Lock, Palette } from 'lucide-react';
 import FileUploader from '@/Components/Media/FileUploader';
+import TemplateLoader from '@/Components/TemplateLoader';
 
-export default function Editor({ auth, event }) {
+export default function Editor({ auth, event, designs }) {
     const { data, setData, post, processing, recentlySuccessful } = useForm({
         template_name: event.design?.template_name || 'InvitationCard1',
         design_data: event.design?.design_data || {
@@ -33,7 +33,7 @@ export default function Editor({ auth, event }) {
         }
     });
 
-    const [activeTab, setActiveTab] = useState('general');
+    const [activeTab, setActiveTab] = useState('plantilla');
 
     const handleDesignChange = (field, value) => {
         setData('design_data', {
@@ -86,7 +86,7 @@ export default function Editor({ auth, event }) {
 
                         {/* Tabs del Editor */}
                         <div className="flex gap-8 border-b border-[#E0E0E0] mb-8 overflow-x-auto">
-                            {['general', 'multimedia', 'ubicacion', 'cronograma', 'estilo'].map(tab => (
+                            {['plantilla', 'general', 'multimedia', 'ubicacion', 'cronograma', 'estilo'].map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -99,6 +99,87 @@ export default function Editor({ auth, event }) {
 
                         <form onSubmit={submit} className="space-y-8">
                             <AnimatePresence mode="wait">
+
+                                {/* ── PLANTILLA ── */}
+                                {activeTab === 'plantilla' && (
+                                    <motion.div
+                                        key="plantilla"
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 10 }}
+                                        className="space-y-6"
+                                    >
+                                        <div>
+                                            <p className="text-[10px] uppercase tracking-[0.2em] text-[#888888] font-bold mb-1">Plantilla seleccionada</p>
+                                            <p className="text-lg font-serif text-[#1A1A1A]">
+                                                {designs.find(d => d.slug === data.template_name)?.name || 'Ninguna'}
+                                            </p>
+                                        </div>
+
+                                        {designs.length === 0 ? (
+                                            <div className="text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                                                <Palette className="w-10 h-10 text-gray-200 mx-auto mb-4" />
+                                                <p className="text-sm text-gray-400 font-serif italic">Aún no hay diseños disponibles</p>
+                                                <p className="text-xs text-gray-400 mt-2 font-sans">El administrador debe crear diseños primero.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {designs.map(design => {
+                                                    const isSelected = data.template_name === design.slug;
+                                                    return (
+                                                        <button
+                                                            key={design.id}
+                                                            type="button"
+                                                            onClick={() => setData('template_name', design.slug)}
+                                                            className={`relative rounded-2xl overflow-hidden border-2 transition-all duration-300 text-left group ${isSelected
+                                                                    ? 'border-[#C5A059] shadow-lg shadow-[#C5A059]/20'
+                                                                    : 'border-gray-100 hover:border-[#C5A059]/40'
+                                                                }`}
+                                                        >
+                                                            {/* Thumbnail */}
+                                                            <div className="aspect-[4/3] bg-gray-100 relative">
+                                                                {design.thumbnail ? (
+                                                                    <img
+                                                                        src={design.thumbnail}
+                                                                        alt={design.name}
+                                                                        className="w-full h-full object-cover"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center">
+                                                                        <Palette className="w-8 h-8 text-gray-200" />
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Selected overlay */}
+                                                                {isSelected && (
+                                                                    <div className="absolute inset-0 bg-[#C5A059]/10 flex items-center justify-center">
+                                                                        <CheckCircle2 className="w-10 h-10 text-[#C5A059] drop-shadow-lg" />
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Premium badge */}
+                                                                {design.is_premium && (
+                                                                    <span className="absolute top-2 right-2 bg-[#1A1A1A]/80 backdrop-blur text-[#C5A059] text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                        <Lock className="w-2.5 h-2.5" /> Premium
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Name */}
+                                                            <div className="p-3 bg-white">
+                                                                <p className={`text-xs font-serif transition-colors ${isSelected ? 'text-[#C5A059]' : 'text-[#1A1A1A]'
+                                                                    }`}>
+                                                                    {design.name}
+                                                                </p>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                )}
+
                                 {activeTab === 'general' && (
                                     <motion.div
                                         key="general"
@@ -412,10 +493,17 @@ export default function Editor({ auth, event }) {
                         {/* Notch simulado */}
                         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-7 bg-[#1A1A1A] rounded-b-3xl z-20"></div>
 
-                        <div className="h-full overflow-y-auto pt-10">
-                            <InvitationCard1
+                        <div className="h-full overflow-y-auto pt-10 text-[60%]">
+                            <TemplateLoader
+                                slug={data.template_name}
                                 data={data.design_data}
-                                guestGroup={{ group_name: 'Familia Castillo', total_passes: 2 }}
+                                event={event}
+                                guestGroup={{
+                                    group_name: 'Familia Castillo', total_passes: 2, members: [
+                                        { id: 0, name: 'Juan Castillo', is_attending: true, menu_choice: '', drink_choice: '', allergies: '' },
+                                        { id: 1, name: 'María Castillo', is_attending: true, menu_choice: '', drink_choice: '', allergies: '' },
+                                    ]
+                                }}
                             />
                         </div>
                     </div>

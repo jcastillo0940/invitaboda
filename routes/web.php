@@ -51,6 +51,18 @@ Route::middleware('auth')->group(function () {
     Route::get('/payment/callback', [\App\Http\Controllers\SubscriptionController::class, 'paymentCallback'])->name('payment.callback');
 });
 
+// --- ADMIN ROUTES ---
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/dashboard', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('dashboard');
+
+    // Design Management (full CRUD)
+    Route::resource('/designs', \App\Http\Controllers\Admin\DesignController::class)->names('designs');
+
+    // Settings
+    Route::get('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'index'])->name('settings');
+    Route::put('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'update'])->name('settings.update');
+});
+
 require __DIR__ . '/auth.php';
 
 // Public Invitation Catch-all Route
