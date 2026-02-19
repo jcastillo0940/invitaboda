@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -17,6 +16,13 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+
+            // --- INICIO DE TUS CAMPOS PERSONALIZADOS PARA EL SAAS ---
+            $table->enum('role', ['admin', 'planner', 'couple', 'guest'])->default('couple');
+            $table->string('agency_name')->nullable(); // Para el White-label B2B
+            $table->string('stripe_customer_id')->nullable(); // Para las suscripciones B2B y pagos B2C
+            // --- FIN DE CAMPOS PERSONALIZADOS ---
+
             $table->rememberToken();
             $table->timestamps();
         });

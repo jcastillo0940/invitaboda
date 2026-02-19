@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'tilopay' => [
+        'key' => env('TILOPAY_API_KEY'),
+        'user' => env('TILOPAY_API_USER'),
+        'password' => env('TILOPAY_API_PASSWORD'),
+        'environment' => env('TILOPAY_ENVIRONMENT', 'sandbox'),
+    ],
+
 ];
