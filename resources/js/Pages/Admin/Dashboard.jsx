@@ -7,8 +7,11 @@ import { motion } from 'framer-motion';
 export default function Dashboard({ auth, stats }) {
     const cards = [
         { label: 'Usuarios Totales', value: stats.total_users, icon: Users, color: 'text-blue-500', bg: 'bg-blue-50' },
+        { label: 'Wedding Planners', value: stats.total_planners, icon: ClipboardList, color: 'text-indigo-500', bg: 'bg-indigo-50' },
+        { label: 'Parejas (Couples)', value: stats.total_couples, icon: Heart, color: 'text-pink-500', bg: 'bg-pink-50' },
         { label: 'Bodas Creadas', value: stats.total_events, icon: LayoutDashboard, color: 'text-purple-500', bg: 'bg-purple-50' },
         { label: 'Ingresos Totales', value: `$${stats.total_revenue}`, icon: DollarSign, color: 'text-green-500', bg: 'bg-green-50' },
+        { label: 'Pedidos Pendientes', value: stats.pending_orders, icon: Plus, color: 'text-amber-500', bg: 'bg-amber-50' },
     ];
 
     return (
@@ -22,7 +25,7 @@ export default function Dashboard({ auth, stats }) {
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
 
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                         {cards.map((card, i) => (
                             <motion.div
                                 key={i}

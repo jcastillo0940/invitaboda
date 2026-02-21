@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import TemplateLoader from '@/Components/TemplateLoader';
+import Envelope from '@/Components/Wedding/Envelope';
 
 export default function Invitation({ event, guestGroup }) {
-    const [isOpen, setIsOpen] = useState(false);
+    const [isEnvelopeOpen, setIsEnvelopeOpen] = useState(false);
     const [showRSVP, setShowRSVP] = useState(false);
 
     const { data, setData, post, processing, recentlySuccessful } = useForm({
@@ -31,14 +32,56 @@ export default function Invitation({ event, guestGroup }) {
         });
     };
 
-    const designData = event.design?.design_data || {
-        primaryNames: event.name,
-        date: event.date,
-        location: 'Lugar por definir',
-        reception: 'Lugar por definir',
+    const defaultDesignData = {
+        primaryNames: event.name || '',
+        date: event.date || '',
+        location: '',
+        locationUrl: '',
+        reception: '',
+        receptionUrl: '',
+        heroImageUrl: '',
+        heroVideoUrl: '',
+        gallery: [],
+        itinerary: [],
+        musicUrl: '',
+        showCountdown: true,
+        envelopeAnimation: { enabled: true, initials: '' },
+        parents: {
+            bride: { father: '', mother: '' },
+            groom: { father: '', mother: '' }
+        },
+        ourStory: '',
+        godparents: [],
+        quote: '',
+        weather: { enabled: false, city: '', apiKey: '', lat: null, lng: null },
+        giftSettings: { type: 'none', registryUrl: '', bankDetails: '', freeText: '' },
+        contact: { label: 'Contacto', phone: '', whatsapp: '' },
+        accommodation: [],
+        songSuggestions: false,
+        guestBook: false,
+        dressCode: { type: 'formal', customText: '' },
+        hashtag: '',
+        calendarEnabled: true,
+        rsvpOptions: { askMenu: false, askDrinks: false, menuOptions: '', drinkOptions: '', askAllergies: true },
         mainColor: '#C5A059',
-        secondaryColor: '#1A1A1A',
-        rsvpOptions: { askMenu: false, askDrinks: false }
+        secondaryColor: '#1A1A1A'
+    };
+
+    const savedData = event.design?.design_data || {};
+
+    const designData = {
+        ...defaultDesignData,
+        ...savedData,
+        envelopeAnimation: { ...defaultDesignData.envelopeAnimation, ...(savedData.envelopeAnimation || {}) },
+        parents: {
+            bride: { ...defaultDesignData.parents.bride, ...(savedData.parents?.bride || {}) },
+            groom: { ...defaultDesignData.parents.groom, ...(savedData.parents?.groom || {}) }
+        },
+        weather: { ...defaultDesignData.weather, ...(savedData.weather || {}) },
+        giftSettings: { ...defaultDesignData.giftSettings, ...(savedData.giftSettings || {}) },
+        contact: { ...defaultDesignData.contact, ...(savedData.contact || {}) },
+        dressCode: { ...defaultDesignData.dressCode, ...(savedData.dressCode || {}) },
+        rsvpOptions: { ...defaultDesignData.rsvpOptions, ...(savedData.rsvpOptions || {}) }
     };
 
     const rsvpOptions = designData.rsvpOptions || { askMenu: false, askDrinks: false };
@@ -47,43 +90,21 @@ export default function Invitation({ event, guestGroup }) {
         <div className="min-h-screen bg-[#F5F5F0] text-[#333333] font-serif selection:bg-[#C5A059] selection:text-white overflow-x-hidden">
             <Head title={`Boda - ${event.name}`} />
 
+            {/* Sobre de Bienvenida (Solo visible al cargar) */}
+            <Envelope
+                initials={designData.envelopeAnimation?.initials}
+                enabled={designData.envelopeAnimation?.enabled}
+                onOpen={() => setIsEnvelopeOpen(true)}
+                mainColor={designData.mainColor}
+            />
+
             <AnimatePresence>
-                {!isOpen ? (
-                    <motion.div
-                        initial={{ opacity: 1 }}
-                        exit={{ opacity: 0, scale: 1.1 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A] cursor-pointer"
-                        onClick={() => setIsOpen(true)}
-                    >
-                        <div className="text-center px-6">
-                            <motion.div
-                                animate={{ scale: [1, 1.05, 1], rotate: [0, 1, -1, 0] }}
-                                transition={{ repeat: Infinity, duration: 4 }}
-                                className="mb-8"
-                            >
-                                <div className="w-48 h-48 md:w-64 md:h-64 border-2 border-[#C5A059] rounded-full flex flex-col items-center justify-center p-8 text-center">
-                                    <span className="text-xl md:text-2xl text-[#C5A059] italic uppercase tracking-[0.2em] leading-tight">
-                                        Alta Costura
-                                        <span className="text-[10px] font-sans tracking-[0.5em] block mt-2 opacity-70">Weddings</span>
-                                    </span>
-                                    <div className="w-8 h-px bg-[#C5A059] my-4 opacity-50"></div>
-                                    <span className="text-[10px] text-white/50 uppercase tracking-widest font-sans">Especialmente para ti</span>
-                                </div>
-                            </motion.div>
-                            <motion.p
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ delay: 1 }}
-                                className="text-[#C5A059] font-sans tracking-[0.5em] uppercase text-[10px]"
-                            >
-                                Toca para abrir
-                            </motion.p>
-                        </div>
-                    </motion.div>
-                ) : (
+                {/* La invitación se muestra una vez el sobre se abre o si el sobre está desactivado */}
+                {(isEnvelopeOpen || !designData.envelopeAnimation?.enabled) && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
+                        transition={{ duration: 1 }}
                         className="max-w-4xl mx-auto"
                     >
                         {/* Template dinámico — se resuelve por slug del diseño */}

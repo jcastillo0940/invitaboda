@@ -16,6 +16,7 @@ class GuestController extends Controller
         $validated = $request->validate([
             'group_name' => 'required|string|max:255',
             'total_passes' => 'required|integer|min:1',
+            'contact_phone' => 'nullable|string|max:20',
             'members' => 'nullable|array',
             'members.*.name' => 'required_with:members|string|max:255',
         ]);
@@ -25,6 +26,7 @@ class GuestController extends Controller
             'group_name' => $validated['group_name'],
             'slug' => Str::slug($validated['group_name']) . '-' . Str::random(5),
             'total_passes' => $validated['total_passes'],
+            'contact_phone' => $validated['contact_phone'],
             'status' => 'pending',
         ]);
 

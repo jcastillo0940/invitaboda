@@ -19,7 +19,13 @@ class GuestGroup extends Model
         'status',
         'contact_phone',
         'contact_email',
+        'is_checked_in',
     ];
+
+    public function checkInLogs(): HasMany
+    {
+        return $this->hasMany(CheckInLog::class);
+    }
 
     public function event(): BelongsTo
     {

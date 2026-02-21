@@ -90,6 +90,21 @@ class EventController extends Controller
         return redirect()->route('events.index')->with('success', 'Evento creado con éxito.');
     }
 
+    public function update(Request $request, Event $event)
+    {
+        $this->authorize('update', $event);
+
+        $validated = $request->validate([
+            'settings' => 'required|array',
+        ]);
+
+        $event->update([
+            'settings' => array_merge($event->settings ?? [], $validated['settings'])
+        ]);
+
+        return back()->with('success', 'Configuración actualizada.');
+    }
+
     public function showPublic($event_slug)
     {
         $event = Event::with('design')->where('slug', $event_slug)->firstOrFail();

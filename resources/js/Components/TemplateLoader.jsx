@@ -1,27 +1,23 @@
-import { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, memo } from 'react';
 
-/**
- * TemplateLoader — Dynamic template resolver by slug.
- *
- * How it works:
- *   1. Receives the design slug (e.g. "elegancia-atemporal")
- *   2. Lazy-loads resources/js/Templates/{slug}.jsx
- *   3. Passes all props directly to the template component
- *   4. If the template doesn't exist, renders a sensible fallback
- */
+// ─── 1. Importaciones lazy en el nivel de MÓDULO (fuera de cualquier componente)
+//        Esto garantiza que la referencia de cada componente sea estable entre renders.
+const TemplateClasico = lazy(() => import('../Templates/clasico.jsx'));
+const TemplateRojoDorado = lazy(() => import('../Templates/rojo-dorado-elegante.jsx'));
+const TemplateBohoChic = lazy(() => import('../Templates/boho-chic.jsx'));
+const TemplateRusticaCampestre = lazy(() => import('../Templates/rustica-campestre.jsx'));
+const TemplateFallback = lazy(() => import('./TemplateFallback.jsx'));
 
-// Vite requires static analysis of import paths, so we use
-// a dynamic import with a known base path pattern.
-const loadTemplate = (slug) => {
-    return lazy(() =>
-        import(`../Templates/${slug}.jsx`).catch(() =>
-            // If the file doesn't exist, load the built-in fallback
-            import('./TemplateFallback.jsx')
-        )
-    );
+// ─── 2. Mapa slug → componente (objeto estático, creado 1 sola vez)
+const TEMPLATE_MAP = {
+    'clasico': TemplateClasico,
+    'rojo-dorado-elegante': TemplateRojoDorado,
+    'boho-chic': TemplateBohoChic,
+    'rustica-campestre': TemplateRusticaCampestre,
 };
 
-const Spinner = () => (
+// ─── 3. Spinner como componente externo (NUNCA dentro de otro componente)
+const LoadingSpinner = () => (
     <div className="min-h-screen flex items-center justify-center bg-[#1A1A1A]">
         <div className="text-center">
             <div className="w-16 h-16 border-2 border-[#C5A059] border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
@@ -30,14 +26,16 @@ const Spinner = () => (
     </div>
 );
 
-export default function TemplateLoader({ slug, ...props }) {
-    // Normalize slug: fallback to 'clasico' if null/undefined
-    const resolvedSlug = slug || 'clasico';
-    const TemplateComponent = loadTemplate(resolvedSlug);
+// ─── 4. TemplateLoader envuelto en memo para evitar re-renders innecesarios
+const TemplateLoader = memo(function TemplateLoader({ slug, ...props }) {
+    // Resuelve el componente desde el mapa estático — NUNCA crea uno dinámico
+    const Template = TEMPLATE_MAP[slug] ?? TemplateFallback;
 
     return (
-        <Suspense fallback={<Spinner />}>
-            <TemplateComponent {...props} />
+        <Suspense fallback={<LoadingSpinner />}>
+            <Template {...props} />
         </Suspense>
     );
-}
+});
+
+export default TemplateLoader;

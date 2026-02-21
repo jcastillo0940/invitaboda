@@ -15,8 +15,11 @@ class AdminDashboardController extends Controller
         return Inertia::render('Admin/Dashboard', [
             'stats' => [
                 'total_users' => User::count(),
+                'total_planners' => User::where('role', 'planner')->count(),
+                'total_couples' => User::where('role', 'couple')->count(),
                 'total_events' => Event::count(),
                 'total_revenue' => Order::where('status', 'completed')->sum('amount'),
+                'pending_orders' => Order::where('status', 'pending')->count(),
                 'recent_orders' => Order::with('user')->latest()->take(5)->get(),
             ]
         ]);

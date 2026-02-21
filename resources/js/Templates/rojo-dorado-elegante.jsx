@@ -1,327 +1,302 @@
 import React, { useState, useEffect } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
+import { Calendar, MapPin, Music, Heart, Users, Gift, Info, Star, Phone, MessageCircle, Bed, Umbrella } from 'lucide-react';
+import Weather from '@/Components/Wedding/Weather';
 
 const CountdownItem = ({ value, label, goldColor }) => (
     <div className="flex flex-col items-center">
         <span
-            className="text-4xl md:text-6xl font-light tracking-tighter"
+            className="text-4xl md:text-5xl font-light tracking-tighter"
             style={{ color: goldColor }}
         >
             {value.toString().padStart(2, '0')}
         </span>
-        <span className="text-[9px] uppercase tracking-[0.3em] mt-3 opacity-70 font-sans text-gray-300">
+        <span className="text-[8px] uppercase tracking-[0.3em] mt-3 opacity-60 font-sans text-gray-300">
             {label}
         </span>
     </div>
 );
 
 export default function RojoDoradoElegante({ data, guestGroup = null }) {
-    // Extracción de datos con fallbacks seguros
-    // NOTA: los defaults en destructuring sólo aplican para `undefined`.
-    // Si el backend envía `null` explicitamente, debemos normalizar con || después.
-    const {
-        primaryNames,
-        date,
-        location,
-        locationUrl,
-        reception,
-        receptionUrl,
-        heroImageUrl,
-        heroVideoUrl,
-        gallery,
-        itinerary,
-        showCountdown,
-        mainColor,
-        secondaryColor,
-        quote
-    } = data || {};
+    // Normalización de datos con fallback total
+    const d = data || {};
+    const primaryNames = d.primaryNames || 'Nuestra Boda';
+    const date = d.date || '2025-12-30';
+    const showCountdown = d.showCountdown !== false;
+    const mainColor = d.mainColor || '#D4AF37'; // Gold
+    const secondaryColor = d.secondaryColor || '#8B0000'; // Dark Red / Wine
+    const quote = d.quote || 'El amor es el lazo que une dos corazones en una sola melodía.';
+    const ourStory = d.ourStory || '';
+    const hashtag = d.hashtag || '';
 
-    // Normalización segura de todos los campos (null → fallback)
-    const safeNames = primaryNames || 'Nuestra Boda';
-    const safeDate = date || '2025-12-31';           // nunca null
-    const safeLocation = location || 'Por confirmar';
-    const safeLocationUrl = locationUrl || '#';
-    const safeReception = reception || 'Por confirmar';
-    const safeReceptionUrl = receptionUrl || '#';
-    const safeHeroImage = heroImageUrl || 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=2070';
-    const safeVideo = heroVideoUrl || '';
-    const safeGallery = gallery || [];
-    const safeItinerary = itinerary || [];
-    const safeCountdown = showCountdown !== false;  // undefined/null → true
-    const gold = mainColor || '#D4AF37';
-    const darkRed = secondaryColor || '#8B0000';
-    const safeQuote = quote || 'Dos almas, un solo corazón, y una vida entera por delante.';
+    const parents = d.parents || { bride: { mother: '', father: '' }, groom: { mother: '', father: '' } };
+    const godparents = d.godparents || [];
+    const giftSettings = d.giftSettings || { type: 'none' };
+    const dressCode = d.dressCode || { type: 'formal', customText: '' };
+    const weather = d.weather || { enabled: false, city: '' };
+    const contact = d.contact || { label: 'Contacto', phone: '', whatsapp: '' };
+    const accommodation = d.accommodation || [];
+    const calendarEnabled = d.calendarEnabled !== false;
 
-    // Estado del contador
+    const safeGallery = d.gallery || [];
+    const safeItinerary = d.itinerary || [];
+
+    // State
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
-    // Parallax para el Hero
+    // Parallax
     const { scrollYProgress } = useScroll();
-    const heroY = useTransform(scrollYProgress, [0, 0.3], [0, 150]);
+    const heroY = useTransform(scrollYProgress, [0, 0.3], [0, 100]);
 
     useEffect(() => {
-        const target = new Date(safeDate).getTime();
+        const target = new Date(date).getTime();
         const interval = setInterval(() => {
             const now = new Date().getTime();
-            const difference = target - now;
-
-            if (difference < 0) {
-                clearInterval(interval);
-                return;
-            }
-
+            const diff = target - now;
+            if (diff < 0) { clearInterval(interval); return; }
             setTimeLeft({
-                days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-                hours: Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-                minutes: Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60)),
-                seconds: Math.floor((difference % (1000 * 60)) / 1000)
+                days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+                hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+                minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+                seconds: Math.floor((diff % (1000 * 60)) / 1000)
             });
         }, 1000);
         return () => clearInterval(interval);
-    }, [safeDate]);
+    }, [date]);
 
-    // Google Calendar URL — usa safeDate (nunca null)
-    const safeDateCompact = safeDate.replace(/-/g, '');
-    const calendarUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=Boda+${encodeURIComponent(safeNames)}&dates=${safeDateCompact}T180000Z/${safeDateCompact}T235959Z&details=Invitación+Especial&location=${encodeURIComponent(safeLocation)}`;
+    // Calendar Link
+    const compactDate = date.replace(/-/g, '');
+    const calendarUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=Boda+${encodeURIComponent(primaryNames)}&dates=${compactDate}T180000Z/${compactDate}T235959Z&details=Invitación+Especial&location=${encodeURIComponent(d.location || '')}`;
 
     return (
-        <div className="bg-[#0a0a0a] text-gray-200 font-serif overflow-x-hidden selection:bg-[#8B0000] selection:text-white">
+        <div className="bg-[#0a0a0a] text-gray-200 font-serif overflow-x-hidden selection:bg-[#D4AF37] selection:text-black">
 
-            {/* 1. HERO SECTION - PARALLAX */}
-            <section className="relative h-screen w-full overflow-hidden flex items-center justify-center">
+            {/* 1. HERO SECTION */}
+            <section className="relative h-screen flex items-center justify-center overflow-hidden">
                 <motion.div style={{ y: heroY }} className="absolute inset-0 z-0">
-                    {safeVideo ? (
+                    {d.heroVideoUrl ? (
                         <video autoPlay loop muted playsInline className="w-full h-full object-cover">
-                            <source src={safeVideo} type="video/mp4" />
+                            <source src={d.heroVideoUrl} type="video/mp4" />
                         </video>
                     ) : (
-                        <img src={safeHeroImage} alt="Wedding Hero" className="w-full h-full object-cover" />
+                        <img src={d.heroImageUrl || 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=2000'} className="w-full h-full object-cover" alt="Hero" />
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-[#0a0a0a]"></div>
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-[#0a0a0a]"></div>
                 </motion.div>
 
-                <div className="relative z-10 text-center px-6 mt-20">
-                    <motion.div
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 1.5, ease: "easeOut" }}
-                    >
-                        <span
-                            className="font-sans uppercase tracking-[0.5em] text-[10px] mb-6 block"
-                            style={{ color: gold }}
-                        >
-                            Tenemos el honor de invitarte
-                        </span>
-
-                        <h1 className="text-5xl md:text-8xl text-white font-light leading-tight mb-8 drop-shadow-lg">
-                            {safeNames.split('y').map((name, i) => (
-                                <span key={i} className="block">
-                                    {name.trim()}
-                                    {i === 0 && (
-                                        <span
-                                            className="italic block text-4xl md:text-6xl my-2"
-                                            style={{ color: darkRed }}
-                                        >
-                                            &
-                                        </span>
-                                    )}
-                                </span>
+                <div className="relative z-10 text-center px-6 pt-20">
+                    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 2 }}>
+                        <span className="text-[10px] uppercase tracking-[0.6em] mb-8 block font-sans" style={{ color: mainColor }}>Comienza nuestra aventura</span>
+                        <h1 className="text-6xl md:text-9xl font-light mb-12 text-white italic">
+                            {primaryNames.split('y').map((n, i) => (
+                                <React.Fragment key={i}>
+                                    <span className="block">{n.trim()}</span>
+                                    {i === 0 && <span className="block text-4xl my-4">&</span>}
+                                </React.Fragment>
                             ))}
                         </h1>
-
-                        <div className="w-16 h-[1px] mx-auto mb-10" style={{ backgroundColor: gold }}></div>
-
-                        <p className="text-white text-lg md:text-2xl tracking-[0.2em] uppercase font-light">
-                            {new Date(safeDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        <div className="w-20 h-[1px] bg-white/30 mx-auto mb-12"></div>
+                        <p className="text-xl md:text-2xl uppercase tracking-[0.4em] font-light text-white">
+                            {new Date(date).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
                         </p>
                     </motion.div>
                 </div>
 
-                {/* Animated Scroll Indicator */}
-                <motion.div
-                    animate={{ y: [0, 10, 0] }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                    className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10"
-                >
-                    <div className="w-[1px] h-16 bg-gradient-to-b from-transparent via-[#D4AF37] to-transparent"></div>
-                </motion.div>
-            </section>
-
-            {/* 2. COUNTDOWN SECTION */}
-            {safeCountdown && (
-                <section className="py-24 border-y border-white/5" style={{ backgroundColor: '#050505' }}>
-                    <div className="max-w-4xl mx-auto px-6 text-center">
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            whileInView={{ opacity: 1 }}
-                            transition={{ duration: 1 }}
-                            viewport={{ once: true }}
-                        >
-                            <h3 className="italic text-3xl mb-12" style={{ color: darkRed }}>
-                                La cuenta regresiva
-                            </h3>
-                            <div className="flex justify-center gap-8 md:gap-16">
-                                <CountdownItem value={timeLeft.days} label="Días" goldColor={gold} />
-                                <CountdownItem value={timeLeft.hours} label="Horas" goldColor={gold} />
-                                <CountdownItem value={timeLeft.minutes} label="Min" goldColor={gold} />
-                                <CountdownItem value={timeLeft.seconds} label="Seg" goldColor={gold} />
-                            </div>
-                        </motion.div>
-                    </div>
-                </section>
-            )}
-
-            {/* 3. QUOTE SECTION */}
-            <section className="py-32 px-6">
-                <div className="max-w-3xl mx-auto text-center">
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 1 }}
-                        viewport={{ once: true }}
-                    >
-                        <svg width="40" height="40" viewBox="0 0 40 40" className="mx-auto mb-10" style={{ fill: darkRed, opacity: 0.5 }}>
-                            <path d="M10 20H0V0H20V20L10 40H0L10 20ZM30 20H20V0H40V20L30 40H20L30 20Z" />
-                        </svg>
-                        <p className="text-2xl md:text-4xl italic text-gray-300 leading-relaxed font-serif">
-                            "{safeQuote}"
-                        </p>
-                    </motion.div>
+                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10 animate-bounce">
+                    <div className="w-[1px] h-12 bg-white/20"></div>
                 </div>
             </section>
 
-            {/* 4. GALLERY SECTION */}
-            {safeGallery.length > 0 && (
-                <section className="py-24" style={{ backgroundColor: '#050505' }}>
-                    <div className="max-w-7xl mx-auto px-6">
-                        <div className="mb-16 text-center">
-                            <span className="font-sans uppercase tracking-[0.5em] text-[10px] mb-4 block" style={{ color: gold }}>
-                                Memorias
-                            </span>
-                            <h2 className="text-4xl md:text-5xl font-light text-white">Nuestra Historia</h2>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {safeGallery.map((url, i) => (
-                                <motion.div
-                                    key={i}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    whileInView={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: i * 0.1 }}
-                                    viewport={{ once: true }}
-                                    className={`relative overflow-hidden group ${i % 3 === 1 ? 'md:row-span-2' : ''}`}
-                                >
-                                    <img
-                                        src={url}
-                                        alt={`Gallery ${i}`}
-                                        className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105 opacity-80 group-hover:opacity-100"
-                                        style={{ minHeight: i % 3 === 1 ? '600px' : '300px' }}
-                                    />
-                                    <div
-                                        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center border-4 pointer-events-none"
-                                        style={{ borderColor: darkRed }}
-                                    ></div>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-            )}
-
-            {/* 5. LOCATION DETAILS */}
+            {/* 2. NUESTRA HISTORIA & PADRES */}
             <section className="py-32 px-6">
-                <div className="max-w-5xl mx-auto">
-                    <div className="text-center mb-20">
-                        <span className="text-[10px] uppercase tracking-[0.5em] font-sans block mb-4" style={{ color: gold }}>
-                            ¿Cuándo y Dónde?
-                        </span>
-                        <h2 className="text-5xl font-light italic text-white">Los Detalles</h2>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-12">
-                        {/* Ceremonia */}
-                        <motion.div
-                            initial={{ y: 30, opacity: 0 }}
-                            whileInView={{ y: 0, opacity: 1 }}
-                            viewport={{ once: true }}
-                            className="p-10 border border-white/10 relative overflow-hidden group"
-                            style={{ backgroundColor: '#080808' }}
-                        >
-                            <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: darkRed }}></div>
-                            <h4 className="text-2xl mb-4 italic text-white">Ceremonia Religiosa</h4>
-                            <p className="text-gray-400 mb-8 font-sans text-sm leading-relaxed min-h-[60px]">{safeLocation}</p>
-                            <div className="flex flex-wrap gap-4">
-                                <a href={safeLocationUrl} target="_blank" rel="noreferrer" className="text-[10px] text-white uppercase tracking-widest border border-white/20 px-6 py-3 hover:bg-white hover:text-black transition-all">Google Maps</a>
-                                <a href={safeLocationUrl !== '#' ? safeLocationUrl.replace('maps', 'waze') : '#'} target="_blank" rel="noreferrer" className="text-[10px] text-white uppercase tracking-widest border border-white/20 px-6 py-3 hover:bg-[#33CCFF] hover:border-[#33CCFF] hover:text-black transition-all">Waze</a>
-                            </div>
+                <div className="max-w-4xl mx-auto">
+                    <div className="grid md:grid-cols-2 gap-20 items-center">
+                        <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }}>
+                            <span className="text-[9px] uppercase tracking-[0.4em] mb-4 block" style={{ color: mainColor }}>Nuestra Historia</span>
+                            <h2 className="text-4xl mb-8 font-light italic">Cómo empezó todo...</h2>
+                            <p className="text-gray-400 font-sans leading-relaxed text-justify italic">
+                                {ourStory || 'Cada historia de amor es hermosa, pero la nuestra es mi favorita. Un viaje que comenzó con una mirada y hoy se convierte en una vida entera.'}
+                            </p>
+                            {hashtag && (
+                                <p className="mt-8 text-lg italic" style={{ color: mainColor }}>{hashtag}</p>
+                            )}
                         </motion.div>
-
-                        {/* Recepción */}
-                        <motion.div
-                            initial={{ y: 30, opacity: 0 }}
-                            whileInView={{ y: 0, opacity: 1 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 0.2 }}
-                            className="p-10 border border-white/10 relative overflow-hidden group"
-                            style={{ backgroundColor: '#080808' }}
-                        >
-                            <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: gold }}></div>
-                            <h4 className="text-2xl mb-4 italic text-white">Recepción</h4>
-                            <p className="text-gray-400 mb-8 font-sans text-sm leading-relaxed min-h-[60px]">{safeReception}</p>
-                            <div className="flex gap-4">
-                                <a href={safeReceptionUrl} target="_blank" rel="noreferrer" className="text-[10px] text-white uppercase tracking-widest border border-white/20 px-6 py-3 hover:bg-white hover:text-black transition-all">Cómo llegar</a>
-                            </div>
-                        </motion.div>
-                    </div>
-
-                    <div className="mt-16 text-center">
-                        <a
-                            href={calendarUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-3 text-black px-10 py-5 font-sans uppercase tracking-[0.3em] text-[10px] transition-all hover:scale-105"
-                            style={{ backgroundColor: gold }}
-                        >
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                                <line x1="16" y1="2" x2="16" y2="6"></line>
-                                <line x1="8" y1="2" x2="8" y2="6"></line>
-                                <line x1="3" y1="10" x2="21" y2="10"></line>
-                            </svg>
-                            Agendar en mi Calendario
-                        </a>
-                    </div>
-                </div>
-            </section>
-
-            {/* 6. ITINERARY */}
-            {safeItinerary.length > 0 && (
-                <section className="py-24 px-6 border-t border-white/5" style={{ backgroundColor: '#050505' }}>
-                    <div className="max-w-3xl mx-auto">
-                        <div className="text-center mb-20">
-                            <span className="text-[10px] uppercase tracking-[0.5em] block mb-4" style={{ color: darkRed }}>
-                                El Camino
-                            </span>
-                            <h2 className="text-4xl md:text-5xl font-light italic text-white">Itinerario de Amor</h2>
-                        </div>
 
                         <div className="space-y-12">
+                            <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}>
+                                <h3 className="text-center text-[10px] uppercase tracking-[0.4em] mb-8 border-b border-white/10 pb-4">Nuestros Padres</h3>
+                                <div className="grid grid-cols-2 gap-10">
+                                    <div className="text-center">
+                                        <p className="text-[9px] uppercase tracking-widest text-gray-500 mb-2">De la novia</p>
+                                        <p className="italic text-gray-300">{parents.bride.mother}</p>
+                                        <p className="italic text-gray-300">{parents.bride.father}</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-[9px] uppercase tracking-widest text-gray-500 mb-2">Del novio</p>
+                                        <p className="italic text-gray-300">{parents.groom.mother}</p>
+                                        <p className="italic text-gray-300">{parents.groom.father}</p>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* 3. WEATHER & QUOTE */}
+            <section className="py-20 bg-[#070707]">
+                <div className="max-w-3xl mx-auto px-6 text-center">
+                    <Weather config={d.weather} eventDate={date} />
+
+                    <motion.div className="mt-20" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }}>
+                        <Heart className="mx-auto w-6 h-6 mb-8" style={{ color: mainColor }} strokeWidth={1} />
+                        <p className="text-2xl md:text-4xl font-light italic text-white/90 leading-relaxed font-serif">
+                            "{quote}"
+                        </p>
+                    </motion.div>
+                </div>
+            </section>
+
+            {/* 4. DETAILS SECTION (Location & Itinerary) */}
+            <section className="py-32 px-6">
+                <div className="max-w-6xl mx-auto">
+                    <div className="text-center mb-24">
+                        <span className="text-[10px] uppercase tracking-[0.5em] font-sans block mb-4" style={{ color: mainColor }}>Logística del Día</span>
+                        <h2 className="text-5xl font-light italic text-white">Donde & Cuando</h2>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-12 mb-20">
+                        <div className="p-12 border border-white/5 bg-[#080808] rounded-sm relative overflow-hidden group hover:border-[#D4AF37]/30 transition-all">
+                            <MapPin className="w-8 h-8 mb-8" style={{ color: mainColor }} />
+                            <h4 className="text-2xl mb-4 italic text-white">Ceremonia</h4>
+                            <p className="text-gray-400 mb-10 min-h-[50px] font-sans font-light">{d.location || 'Ubicación por confirmar'}</p>
+                            <a href={d.locationUrl || '#'} target="_blank" className="inline-block text-[10px] uppercase tracking-widest border border-white/20 px-8 py-4 hover:bg-white hover:text-black transition-all">Ver en el mapa</a>
+                        </div>
+                        <div className="p-12 border border-white/5 bg-[#080808] rounded-sm relative overflow-hidden group hover:border-[#8B0000]/30 transition-all">
+                            <Music className="w-8 h-8 mb-8" style={{ color: secondaryColor }} />
+                            <h4 className="text-2xl mb-4 italic text-white">Recepción</h4>
+                            <p className="text-gray-400 mb-10 min-h-[50px] font-sans font-light">{d.reception || 'Ubicación por confirmar'}</p>
+                            <a href={d.receptionUrl || '#'} target="_blank" className="inline-block text-[10px] uppercase tracking-widest border border-white/20 px-8 py-4 hover:bg-white hover:text-black transition-all">Ver en el mapa</a>
+                        </div>
+                    </div>
+
+                    {calendarEnabled && (
+                        <div className="text-center mb-24">
+                            <a href={calendarUrl} target="_blank" className="inline-flex items-center gap-4 bg-white text-black px-12 py-5 text-[10px] uppercase tracking-[0.4em] font-bold hover:scale-105 transition-all shadow-xl">
+                                <Calendar className="w-4 h-4" /> Agendar Fecha
+                            </a>
+                        </div>
+                    )}
+
+                    {safeItinerary.length > 0 && (
+                        <div className="max-w-2xl mx-auto space-y-16 py-10 border-t border-white/10">
                             {safeItinerary.map((item, i) => (
-                                <motion.div
-                                    key={i}
-                                    initial={{ opacity: 0, x: -20 }}
-                                    whileInView={{ opacity: 1, x: 0 }}
-                                    viewport={{ once: true }}
-                                    className="flex items-center gap-8 group"
-                                >
-                                    <div className="w-24 text-right">
-                                        <span className="text-2xl font-light" style={{ color: gold }}>{item.time}</span>
+                                <motion.div key={i} className="flex gap-10 items-center" initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }}>
+                                    <div className="w-32 text-right">
+                                        <span className="text-3xl font-light italic" style={{ color: mainColor }}>{item.time}</span>
                                     </div>
-                                    <div className="w-3 h-3 rounded-full relative z-10" style={{ backgroundColor: darkRed }}>
-                                        <div className="absolute inset-0 bg-red-900 rounded-full animate-ping opacity-20"></div>
+                                    <div className="w-[1px] h-10 bg-white/10 relative">
+                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full" style={{ backgroundColor: secondaryColor }}></div>
                                     </div>
-                                    <div className="flex-1 pb-8 border-b border-white/10 group-last:border-0 group-last:pb-0">
-                                        <h4 className="text-xl font-light uppercase tracking-widest text-white">{item.activity}</h4>
+                                    <div className="flex-1">
+                                        <h5 className="text-lg uppercase tracking-widest text-white/80 font-sans font-light">{item.activity}</h5>
                                     </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* 5. GUEST GROUP INFO */}
+            {guestGroup && (
+                <section className="py-24 bg-[#080808] border-y border-white/5">
+                    <div className="max-w-xl mx-auto px-6 text-center">
+                        <Users className="mx-auto w-8 h-8 mb-8 opacity-20" />
+                        <h3 className="text-[10px] uppercase tracking-[0.5em] mb-4 text-gray-400">Pases reservados</h3>
+                        <h2 className="text-4xl italic text-white mb-10">{guestGroup.group_name}</h2>
+                        <div className="flex justify-center gap-12">
+                            <div className="text-center">
+                                <p className="text-3xl font-light" style={{ color: mainColor }}>{guestGroup.total_passes}</p>
+                                <p className="text-[8px] uppercase tracking-widest opacity-50">Personas</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            )}
+
+            {/* 6. LOGISTICS (Gift, Dress code, Accommodation) */}
+            <section className="py-32 px-6">
+                <div className="max-w-5xl mx-auto">
+                    <div className="grid md:grid-cols-3 gap-12">
+                        {/* Dress Code */}
+                        <div className="text-center p-10 bg-white/5 rounded-3xl backdrop-blur-sm">
+                            <Star className="mx-auto w-6 h-6 mb-6" style={{ color: mainColor }} />
+                            <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold mb-4">Código de Vestimenta</h4>
+                            <p className="text-2xl italic text-white mb-2">{dressCode.type === 'formal' ? 'Gala / Formal' : dressCode.type === 'cocktail' ? 'Cóctel' : dressCode.type === 'semi' ? 'Semi-Formal' : 'Informal'}</p>
+                            <p className="text-xs text-gray-500 font-sans leading-relaxed">{dressCode.customText || 'Agradecemos su elegancia.'}</p>
+                        </div>
+
+                        {/* Gift */}
+                        <div className="text-center p-10 bg-white/5 rounded-3xl backdrop-blur-sm">
+                            <Gift className="mx-auto w-6 h-6 mb-6" style={{ color: mainColor }} />
+                            <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold mb-4">Sugerencia de Regalo</h4>
+                            {giftSettings.type === 'registry' ? (
+                                <a href={giftSettings.registryUrl} target="_blank" className="text-lg italic text-white underline decoration-[#C5A059] underline-offset-4">Ver mesa de regalos</a>
+                            ) : giftSettings.type === 'bank' ? (
+                                <p className="text-xs text-gray-400 whitespace-pre-line">{giftSettings.bankDetails}</p>
+                            ) : giftSettings.type === 'text' ? (
+                                <p className="text-sm italic text-white">{giftSettings.freeText}</p>
+                            ) : (
+                                <p className="text-xs text-gray-400 font-sans">Su presencia es nuestro mejor regalo.</p>
+                            )}
+                        </div>
+
+                        {/* Contact */}
+                        <div className="text-center p-10 bg-white/5 rounded-3xl backdrop-blur-sm">
+                            <Phone className="mx-auto w-6 h-6 mb-6" style={{ color: mainColor }} />
+                            <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold mb-4">{contact.label || 'Ayuda'}</h4>
+                            <div className="flex justify-center gap-4">
+                                {contact.whatsapp && (
+                                    <a href={`https://wa.me/${contact.whatsapp}`} target="_blank" className="p-3 bg-white/10 rounded-full hover:bg-white hover:text-black transition-all">
+                                        <MessageCircle className="w-5 h-5" />
+                                    </a>
+                                )}
+                                {contact.phone && (
+                                    <a href={`tel:${contact.phone}`} className="p-3 bg-white/10 rounded-full hover:bg-white hover:text-black transition-all">
+                                        <Phone className="w-5 h-5" />
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {accommodation.length > 0 && (
+                        <div className="mt-20 p-12 bg-white/5 rounded-3xl text-center">
+                            <Bed className="mx-auto w-6 h-6 mb-6 text-gray-400" />
+                            <h4 className="text-[10px] uppercase tracking-[0.4em] font-bold mb-10">Hospedajes Recomendados</h4>
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
+                                {accommodation.map((hotel, i) => (
+                                    <div key={i} className="flex items-center justify-between border-b border-white/10 pb-4">
+                                        <span className="italic text-gray-300">{hotel.name}</span>
+                                        {hotel.link && <a href={hotel.link} target="_blank" className="text-[10px] text-[#C5A059] border-b border-[#C5A059]">Ver info</a>}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* 7. GALLERY */}
+            {safeGallery.length > 0 && (
+                <section className="py-32 bg-[#050505]">
+                    <div className="max-w-7xl mx-auto px-6">
+                        <div className="columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4">
+                            {safeGallery.map((url, i) => (
+                                <motion.div key={i} initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} className="relative group overflow-hidden rounded-sm">
+                                    <img src={url} className="w-full h-auto grayscale hover:grayscale-0 transition-all duration-700" alt={`Gallery ${i}`} />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                 </motion.div>
                             ))}
                         </div>
@@ -329,71 +304,23 @@ export default function RojoDoradoElegante({ data, guestGroup = null }) {
                 </section>
             )}
 
-            {/* 7. INVITADOS (Guest Group Dinámico de Invitaboda) */}
-            {guestGroup && (
-                <section className="py-20 px-6 border-y border-white/10" style={{ backgroundColor: '#080808' }}>
-                    <div className="max-w-2xl mx-auto text-center">
-                        <h2 className="text-2xl mb-4 font-sans uppercase tracking-[0.2em]" style={{ color: gold }}>
-                            Pases reservados para:
-                        </h2>
-                        <h3 className="text-4xl md:text-5xl italic mb-10 text-white">
-                            {guestGroup.group_name}
-                        </h3>
-
-                        <div className="p-8 border border-white/5 bg-[#0a0a0a]">
-                            <p className="text-[10px] uppercase tracking-widest mb-6 text-gray-500">
-                                Personas en este pase ({guestGroup.total_passes})
-                            </p>
-                            <ul className="space-y-4">
-                                {guestGroup.members.map(m => (
-                                    <li key={m.id} className="text-lg text-gray-300 font-light border-b border-white/5 pb-2 last:border-0">
-                                        {m.name}
-                                    </li>
-                                ))}
-                            </ul>
+            {/* 8. PADRINOS SECTION */}
+            {godparents.length > 0 && (
+                <section className="py-24 px-6 border-t border-white/5">
+                    <div className="max-w-3xl mx-auto text-center">
+                        <Star className="mx-auto w-8 h-8 mb-8 opacity-20" />
+                        <h2 className="text-3xl italic mb-12">Nuestros Padrinos</h2>
+                        <div className="flex flex-wrap justify-center gap-x-12 gap-y-6">
+                            {godparents.map((name, i) => (
+                                <span key={i} className="text-xl font-light italic text-gray-400">{name}</span>
+                            ))}
                         </div>
                     </div>
                 </section>
             )}
 
-            {/* 8. GIFT & DRESS CODE SECTION */}
-            <section className="py-32 px-6">
-                <div className="max-w-4xl mx-auto text-center">
-                    <motion.div
-                        initial={{ y: 20, opacity: 0 }}
-                        whileInView={{ y: 0, opacity: 1 }}
-                        viewport={{ once: true }}
-                        className="grid md:grid-cols-2 gap-8"
-                    >
-                        {/* Lluvia de Sobres */}
-                        <div className="p-12 border border-white/10 bg-[#050505]">
-                            <svg className="w-8 h-8 mx-auto mb-6" style={{ color: gold }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            <h2 className="text-2xl italic mb-4 text-white">Lluvia de Sobres</h2>
-                            <p className="text-gray-400 font-sans text-sm leading-relaxed">
-                                Su presencia es nuestro mayor regalo. Si desean tener un detalle adicional con nosotros, contaremos con un buzón en el evento.
-                            </p>
-                        </div>
-
-                        {/* Dress Code */}
-                        <div className="p-12 border border-white/10 bg-[#050505]">
-                            <svg className="w-8 h-8 mx-auto mb-6" style={{ color: darkRed }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            <span className="text-xs uppercase tracking-[0.3em] font-bold block mb-4" style={{ color: gold }}>
-                                Dress Code
-                            </span>
-                            <p className="text-2xl font-light text-white italic">Etiqueta Rigurosa</p>
-                            <p className="text-gray-500 font-sans text-xs mt-4">Nos reservamos el uso del color blanco.</p>
-                        </div>
-                    </motion.div>
-                </div>
-            </section>
-
-            {/* Footer space for RSVP Button in Invitation.jsx */}
+            {/* SPACE FOR FIXED RSVP BUTTON */}
             <div className="h-40"></div>
-
         </div>
     );
 }

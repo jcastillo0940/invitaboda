@@ -14,9 +14,7 @@ Route::get('/', function () {
     ]);
 });
 
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -39,6 +37,11 @@ Route::middleware('auth')->group(function () {
 
     Route::post('events/{event}/upload', [\App\Http\Controllers\AssetController::class, 'upload'])->name('assets.upload');
     Route::post('events/{event}/update-design', [\App\Http\Controllers\EventController::class, 'updateDesign'])->name('events.update-design');
+
+    // Check-In / Puerta Virtual
+    Route::get('events/{event}/check-in', [\App\Http\Controllers\EventCheckInController::class, 'index'])->name('events.check-in');
+    Route::post('events/{event}/check-in/validate', [\App\Http\Controllers\EventCheckInController::class, 'validateGuest'])->name('events.check-in.validate');
+    Route::post('events/{event}/check-in/{guestGroup}/toggle', [\App\Http\Controllers\EventCheckInController::class, 'toggleCheckIn'])->name('events.check-in.toggle');
 
     // Agency B2B Management
     Route::get('/agency/settings', [\App\Http\Controllers\AgencyController::class, 'settings'])->name('agency.settings');
