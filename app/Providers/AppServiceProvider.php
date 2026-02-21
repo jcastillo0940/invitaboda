@@ -13,7 +13,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Añade esto para cambiar la ruta pública globalmente
+        $this->app->bind('path.public', function() {
+            return base_path('public_html');
+        });
     }
 
     /**
@@ -23,5 +26,8 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191);
         Vite::prefetch(concurrency: 3);
+        
+        // Opcional: Forzar a Vite a usar public_html si hay problemas de detección
+        Vite::useBuildDirectory('build');
     }
 }
