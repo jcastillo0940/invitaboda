@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
+import Weather from '@/Components/Wedding/Weather';
 
 const CountdownItem = ({ value, label, mainColor }) => (
     <div className="flex flex-col items-center">
@@ -31,7 +32,8 @@ export default function RusticaCampestre({ data, guestGroup = null }) {
         showCountdown,
         mainColor,
         secondaryColor,
-        quote
+        quote,
+        quoteSource
     } = data || {};
 
     // Normalización segura de todos los campos (null → fallback)
@@ -51,6 +53,7 @@ export default function RusticaCampestre({ data, guestGroup = null }) {
     const leafGreen = mainColor || '#556B2F';
     const earthBrown = secondaryColor || '#8B5A2B';
     const safeQuote = quote || 'Donde comienza la naturaleza, también empieza nuestra historia.';
+    const safeQuoteSource = quoteSource || '';
 
     // Estado del contador
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -192,7 +195,9 @@ export default function RusticaCampestre({ data, guestGroup = null }) {
                         transition={{ duration: 1 }}
                         viewport={{ once: true }}
                     >
-                        <svg className="w-12 h-12 mx-auto mb-8 opacity-40" viewBox="0 0 24 24" fill="none" stroke={earthBrown} strokeWidth="1">
+                        <Weather config={data?.weather} eventDate={safeDate} />
+
+                        <svg className="w-12 h-12 mx-auto mt-20 mb-8 opacity-40" viewBox="0 0 24 24" fill="none" stroke={earthBrown} strokeWidth="1">
                             <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z"></path>
                             <path d="M8 14C10.2091 14 12 12.2091 12 10C12 7.79086 10.2091 6 8 6C5.79086 6 4 7.79086 4 10C4 12.2091 5.79086 14 8 14Z"></path>
                             <path d="M16 18C18.2091 18 20 16.2091 20 14C20 11.7909 18.2091 10 16 10C13.7909 10 12 11.7909 12 14C12 16.2091 13.7909 18 16 18Z"></path>
@@ -200,6 +205,11 @@ export default function RusticaCampestre({ data, guestGroup = null }) {
                         <p className="text-2xl md:text-3xl italic text-[#4A3B32] leading-relaxed">
                             "{safeQuote}"
                         </p>
+                        {safeQuoteSource && (
+                            <p className="mt-8 font-mono uppercase tracking-[0.2em] text-[10px] text-[#4A3B32]/60">
+                                — {safeQuoteSource} —
+                            </p>
+                        )}
                     </motion.div>
                 </div>
             </section>

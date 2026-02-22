@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import Weather from '@/Components/Wedding/Weather';
 
 /**
  * TEMPLATE: clasico
@@ -63,6 +64,24 @@ export default function Clasico({ data, event, guestGroup }) {
                     )}
                     {location && (
                         <p className="text-xs uppercase tracking-[0.3em] font-sans text-gray-400">{location}</p>
+                    )}
+
+                    {/* Clima */}
+                    <div className="mt-12">
+                        <Weather config={data?.weather} eventDate={event?.date} />
+                    </div>
+
+                    {data?.quote && (
+                        <div className="mt-16">
+                            <p className="text-xl italic text-gray-600 leading-relaxed font-serif">
+                                "{data.quote}"
+                            </p>
+                            {data.quoteSource && (
+                                <p className="mt-4 text-[9px] uppercase tracking-[0.3em] opacity-40 font-sans" style={{ color: gold }}>
+                                    — {data.quoteSource} —
+                                </p>
+                            )}
+                        </div>
                     )}
                 </motion.div>
             </section>

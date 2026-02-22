@@ -53,6 +53,7 @@ export default function Invitation({ event, guestGroup }) {
         ourStory: '',
         godparents: [],
         quote: '',
+        quoteSource: '',
         weather: { enabled: false, city: '', apiKey: '', lat: null, lng: null },
         giftSettings: { type: 'none', registryUrl: '', bankDetails: '', freeText: '' },
         contact: { label: 'Contacto', phone: '', whatsapp: '' },

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
+import Weather from '@/Components/Wedding/Weather';
 
 const CountdownItem = ({ value, label, mainColor }) => (
     <div className="flex flex-col items-center">
@@ -31,7 +32,8 @@ export default function BohoChic({ data, guestGroup = null }) {
         showCountdown,
         mainColor,
         secondaryColor,
-        quote
+        quote,
+        quoteSource
     } = data || {};
 
     // Normalización segura de todos los campos (null → fallback)
@@ -51,6 +53,7 @@ export default function BohoChic({ data, guestGroup = null }) {
     const terracotta = mainColor || '#C17767';
     const oliveGreen = secondaryColor || '#8A9A5B';
     const safeQuote = quote || 'Dos espíritus libres que encontraron su hogar el uno en el otro.';
+    const safeQuoteSource = quoteSource || '';
 
     // Estado del contador
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -173,6 +176,11 @@ export default function BohoChic({ data, guestGroup = null }) {
                         transition={{ duration: 1 }}
                         viewport={{ once: true }}
                     >
+                        {/* Clima */}
+                        <div className="mb-20">
+                            <Weather config={data?.weather} eventDate={safeDate} />
+                        </div>
+
                         {/* SVG Rama botánica */}
                         <svg className="w-16 h-16 mx-auto mb-8 opacity-60" viewBox="0 0 24 24" fill="none" stroke={oliveGreen} strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M12 22v-9"></path>
@@ -184,6 +192,11 @@ export default function BohoChic({ data, guestGroup = null }) {
                         <p className="text-3xl md:text-4xl italic text-[#5A4634] leading-relaxed">
                             "{safeQuote}"
                         </p>
+                        {safeQuoteSource && (
+                            <p className="mt-8 font-sans uppercase tracking-[0.3em] text-[10px] text-[#5A4634]/60">
+                                — {safeQuoteSource} —
+                            </p>
+                        )}
                     </motion.div>
                 </div>
             </section>

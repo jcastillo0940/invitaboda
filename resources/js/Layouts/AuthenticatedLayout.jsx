@@ -41,12 +41,12 @@ const Icons = {
     ),
 };
 
-export default function AuthenticatedLayout({ header, children }) {
-    const user = usePage().props.auth.user;
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+// NavItem rediseñado para Sidebar Oscuro (DEFINIDO FUERA PARA EVITAR RE-RENDERS Y HOOK ISSUES)
+const NavItem = ({ href, active, icon: Icon, children }) => {
+    // Verificación defensiva del icono
+    if (!Icon) return null;
 
-    // NavItem rediseñado para Sidebar Oscuro
-    const NavItem = ({ href, active, icon: Icon, children }) => (
+    return (
         <Link
             href={href}
             className={`group flex items-center rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${active
@@ -63,6 +63,16 @@ export default function AuthenticatedLayout({ header, children }) {
             {children}
         </Link>
     );
+};
+
+export default function AuthenticatedLayout({ header, children }) {
+    const { auth } = usePage().props;
+    const user = auth?.user;
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    // Si no hay usuario (sesión expirada o similar), evitamos crash
+    if (!user) return null;
+
 
     return (
         <div className="flex h-screen overflow-hidden bg-gray-50 font-sans">

@@ -8,13 +8,19 @@ import TemplateLoader from '@/Components/TemplateLoader';
 import LocationPicker from '@/Components/Inputs/LocationPicker';
 import DebugBoundary from '@/Components/DebugBoundary';
 
+const TABS = ['plantilla', 'general', 'multimedia', 'detalles', 'logistica', 'interaccion', 'estilo'];
+
 export default function Editor({ auth, event, designs }) {
     const defaultDesignData = {
         primaryNames: event.name || '',
         date: event.date || '',
         location: '',
+        locationLat: null,
+        locationLng: null,
         locationUrl: '',
         reception: '',
+        receptionLat: null,
+        receptionLng: null,
         receptionUrl: '',
         heroImageUrl: '',
         heroVideoUrl: '',
@@ -33,6 +39,7 @@ export default function Editor({ auth, event, designs }) {
         ourStory: '',
         godparents: [],
         quote: '',
+        quoteSource: '',
         weather: {
             enabled: false,
             city: '',
@@ -95,13 +102,42 @@ export default function Editor({ auth, event, designs }) {
     });
 
     const [activeTab, setActiveTab] = useState('plantilla');
-    const tabs = ['plantilla', 'general', 'multimedia', 'detalles', 'logistica', 'interaccion', 'estilo'];
 
     const handleDesignChange = (field, value) => {
-        setData('design_data', {
+        let newData = {
             ...data.design_data,
             [field]: value
-        });
+        };
+
+        // Si el valor es un objeto con coordenadas (viene del LocationPicker)
+        if (typeof value === 'object' && value !== null && value.lat) {
+            if (field === 'location') {
+                newData.location = value.address || value.city || '';
+                newData.locationLat = value.lat;
+                newData.locationLng = value.lng;
+                newData.locationUrl = value.url || '';
+            } else if (field === 'reception') {
+                newData.reception = value.address || value.city || '';
+                newData.receptionLat = value.lat;
+                newData.receptionLng = value.lng;
+                newData.receptionUrl = value.url || '';
+            }
+
+            // Auto-sincronizar clima solo si no tiene coords
+            if ((field === 'location' || field === 'reception') && (!newData.weather.lat || !newData.weather.city)) {
+                newData.weather = {
+                    ...newData.weather,
+                    lat: value.lat,
+                    lng: value.lng,
+                    city: value.city || (value.address ? value.address.split(',')[0] : '')
+                };
+            }
+        } else if (typeof value === 'string') {
+            // Si es string (el usuario escribió directo en el input de texto), solo actualizar el campo de texto
+            newData[field] = value;
+        }
+
+        setData('design_data', newData);
     };
 
     const addItineraryItem = () => {
@@ -148,7 +184,7 @@ export default function Editor({ auth, event, designs }) {
 
                         {/* Tabs del Editor */}
                         <div className="flex gap-8 border-b border-[#E0E0E0] mb-8 overflow-x-auto">
-                            {tabs.map(tab => (
+                            {TABS.map(tab => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -174,11 +210,11 @@ export default function Editor({ auth, event, designs }) {
                                         <div>
                                             <p className="text-[10px] uppercase tracking-[0.2em] text-[#888888] font-bold mb-1">Plantilla seleccionada</p>
                                             <p className="text-lg font-serif text-[#1A1A1A]">
-                                                {designs.find(d => d.slug === data.template_name)?.name || 'Ninguna'}
+                                                {designs?.find(d => d.slug === data.template_name)?.name || 'Ninguna'}
                                             </p>
                                         </div>
 
-                                        {!designs || designs.length === 0 ? (
+                                        {(!designs || designs.length === 0) ? (
                                             <div className="text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                                                 <Palette className="w-10 h-10 text-gray-200 mx-auto mb-4" />
                                                 <p className="text-sm text-gray-400 font-serif italic">Aún no hay diseños disponibles</p>
@@ -436,13 +472,22 @@ export default function Editor({ auth, event, designs }) {
 
                                         <div>
                                             <label className="block text-[10px] uppercase tracking-widest text-[#888888] mb-2 font-sans font-bold">Frase o Cita Inspiracional</label>
-                                            <input
-                                                type="text"
-                                                value={data.design_data.quote}
-                                                onChange={e => handleDesignChange('quote', e.target.value)}
-                                                className="w-full border-0 border-b border-[#E0E0E0] focus:border-[#C5A059] focus:ring-0 font-serif italic text-lg p-0 py-2 bg-transparent"
-                                                placeholder="Ej: El amor lo puede todo..."
-                                            />
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <input
+                                                    type="text"
+                                                    value={data.design_data.quote}
+                                                    onChange={e => handleDesignChange('quote', e.target.value)}
+                                                    className="w-full border-0 border-b border-[#E0E0E0] focus:border-[#C5A059] focus:ring-0 font-serif italic text-lg p-0 py-2 bg-transparent"
+                                                    placeholder="Ej: El amor lo puede todo..."
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={data.design_data.quoteSource}
+                                                    onChange={e => handleDesignChange('quoteSource', e.target.value)}
+                                                    className="w-full border-0 border-b border-[#E0E0E0] focus:border-[#C5A059] focus:ring-0 font-sans text-xs p-0 py-2 bg-transparent"
+                                                    placeholder="Fuente (Ej: Juan 13:31)"
+                                                />
+                                            </div>
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -506,7 +551,10 @@ export default function Editor({ auth, event, designs }) {
                                                             }}
                                                             className="flex-1 border-b border-[#E0E0E0] focus:border-[#C5A059] focus:ring-0 text-xs p-0 py-1 bg-transparent"
                                                         />
-                                                        <button type="button" onClick={() => handleDesignChange('godparents', data.design_data.godparents.filter((_, i) => i !== idx))} className="text-red-300">&times;</button>
+                                                        <button type="button" onClick={() => {
+                                                            const currentGodparents = data.design_data.godparents || [];
+                                                            handleDesignChange('godparents', currentGodparents.filter((_, i) => i !== idx));
+                                                        }} className="text-red-300">&times;</button>
                                                     </div>
                                                 ))}
                                             </div>
@@ -514,7 +562,6 @@ export default function Editor({ auth, event, designs }) {
                                     </motion.div>
                                 )}
 
-                                {/* ── LOGÍSTICA ── */}
                                 {activeTab === 'logistica' && (
                                     <motion.div
                                         key="logistica"
@@ -523,118 +570,142 @@ export default function Editor({ auth, event, designs }) {
                                         exit={{ opacity: 0, x: 10 }}
                                         className="space-y-8"
                                     >
-                                        {/* Ubicación (Ubicación & Link) */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                            <div className="space-y-6">
-                                                <p className="text-[10px] uppercase tracking-widest text-[#C5A059] font-bold">Lugar Ceremonia</p>
-                                                <input
-                                                    type="text"
-                                                    value={data.design_data.location}
-                                                    onChange={e => handleDesignChange('location', e.target.value)}
-                                                    className="w-full border-b border-[#E0E0E0] focus:ring-0 text-serif text-sm p-1 bg-transparent"
-                                                    placeholder="Nombre del lugar..."
-                                                />
-                                                <input
-                                                    type="text"
-                                                    value={data.design_data.locationUrl}
-                                                    onChange={e => handleDesignChange('locationUrl', e.target.value)}
-                                                    className="w-full border-b border-[#E0E0E0] focus:ring-0 text-xs p-1 bg-transparent"
-                                                    placeholder="Link Google Maps..."
-                                                />
-                                            </div>
-                                            <div className="space-y-6">
-                                                <p className="text-[10px] uppercase tracking-widest text-[#C5A059] font-bold">Lugar Recepción</p>
-                                                <input
-                                                    type="text"
-                                                    value={data.design_data.reception}
-                                                    onChange={e => handleDesignChange('reception', e.target.value)}
-                                                    className="w-full border-b border-[#E0E0E0] focus:ring-0 text-serif text-sm p-1 bg-transparent"
-                                                    placeholder="Nombre del lugar..."
-                                                />
-                                                <input
-                                                    type="text"
-                                                    value={data.design_data.receptionUrl}
-                                                    onChange={e => handleDesignChange('receptionUrl', e.target.value)}
-                                                    className="w-full border-b border-[#E0E0E0] focus:ring-0 text-xs p-1 bg-transparent"
-                                                    placeholder="Link Google Maps..."
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Regalos */}
-                                        <div className="pt-6 border-t border-gray-100">
-                                            <p className="text-[10px] uppercase tracking-widest text-[#888888] font-bold mb-4">Mesa de Regalos</p>
-                                            <div className="grid grid-cols-3 gap-2 mb-4">
-                                                {['none', 'registry', 'bank', 'text'].map(type => (
-                                                    <button
-                                                        key={type}
-                                                        type="button"
-                                                        onClick={() => handleDesignChange('giftSettings', { ...data.design_data.giftSettings, type })}
-                                                        className={`py-2 text-[8px] uppercase tracking-widest border rounded transition-all ${data.design_data.giftSettings.type === type ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]' : 'border-gray-200 text-gray-400'}`}
-                                                    >
-                                                        {type === 'none' ? 'Inactivo' : type === 'registry' ? 'Link Mesa' : type === 'bank' ? 'Cuentas' : 'Libre'}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                            {data.design_data.giftSettings.type === 'registry' && (
-                                                <input type="text" value={data.design_data.giftSettings.registryUrl} onChange={e => handleDesignChange('giftSettings', { ...data.design_data.giftSettings, registryUrl: e.target.value })} className="w-full border-b border-gray-200 text-xs p-1" placeholder="Link a mesa de regalos (Amazon, etc)..." />
-                                            )}
-                                            {data.design_data.giftSettings.type === 'bank' && (
-                                                <textarea value={data.design_data.giftSettings.bankDetails} onChange={e => handleDesignChange('giftSettings', { ...data.design_data.giftSettings, bankDetails: e.target.value })} rows={3} className="w-full border border-gray-100 rounded text-xs p-2" placeholder="Datos bancarios..." />
-                                            )}
-                                            {data.design_data.giftSettings.type === 'text' && (
-                                                <input type="text" value={data.design_data.giftSettings.freeText} onChange={e => handleDesignChange('giftSettings', { ...data.design_data.giftSettings, freeText: e.target.value })} className="w-full border-b border-gray-200 text-xs p-1" placeholder="Ex: Lluvia de sobres..." />
-                                            )}
-                                        </div>
-
-                                        {/* Código de Vestimenta */}
-                                        <div className="pt-6 border-t border-gray-100">
-                                            <label className="block text-[10px] uppercase tracking-widest text-[#888888] mb-2 font-bold">Código de Vestimenta</label>
-                                            <div className="flex gap-4 items-center">
-                                                <select
-                                                    value={data.design_data.dressCode.type}
-                                                    onChange={e => handleDesignChange('dressCode', { ...data.design_data.dressCode, type: e.target.value })}
-                                                    className="border-gray-100 text-xs rounded-lg"
-                                                >
-                                                    <option value="formal">Gala / Formal</option>
-                                                    <option value="semi">Semi-Formal</option>
-                                                    <option value="cocktail">Cóctel</option>
-                                                    <option value="casual">Informal / Guayabera</option>
-                                                </select>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Texto adicional (Ej: No blanco)..."
-                                                    value={data.design_data.dressCode.customText}
-                                                    onChange={e => handleDesignChange('dressCode', { ...data.design_data.dressCode, customText: e.target.value })}
-                                                    className="flex-1 border-b border-gray-100 text-xs p-1"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Hospedaje */}
-                                        <div className="pt-6 border-t border-gray-100">
-                                            <div className="flex justify-between items-center mb-4">
-                                                <label className="block text-[10px] uppercase tracking-widest text-[#888888] font-bold">Hospedaje Recomendado</label>
-                                                <button type="button" onClick={() => handleDesignChange('accommodation', [...(data.design_data.accommodation || []), { name: '', link: '' }])} className="text-[#C5A059] text-[9px] uppercase tracking-widest border border-[#C5A059] px-2 py-0.5 hover:bg-[#C5A059] transition-all">+ Agregar Hotel</button>
-                                            </div>
-                                            <div className="space-y-3">
-                                                {(data.design_data.accommodation || []).map((hotel, idx) => (
-                                                    <div key={idx} className="flex gap-2">
-                                                        <input type="text" placeholder="Nombre Hotel" value={hotel.name} onChange={e => {
-                                                            const newAcc = [...data.design_data.accommodation];
-                                                            newAcc[idx].name = e.target.value;
-                                                            handleDesignChange('accommodation', newAcc);
-                                                        }} className="flex-1 border-b border-gray-100 text-xs p-1" />
-                                                        <input type="text" placeholder="Link (opcional)" value={hotel.link} onChange={e => {
-                                                            const newAcc = [...data.design_data.accommodation];
-                                                            newAcc[idx].link = e.target.value;
-                                                            handleDesignChange('accommodation', newAcc);
-                                                        }} className="flex-1 border-b border-gray-100 text-[10px] p-1" />
-                                                        <button type="button" onClick={() => handleDesignChange('accommodation', data.design_data.accommodation.filter((_, i) => i !== idx))} className="text-red-300">&times;</button>
+                                        <DebugBoundary name="Logistica Tab">
+                                            {/* Ubicación (Ubicación & Link) */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                <div className="space-y-6">
+                                                    <p className="text-[10px] uppercase tracking-widest text-[#C5A059] font-bold">Lugar Ceremonia</p>
+                                                    <LocationPicker
+                                                        lat={data.design_data.locationLat}
+                                                        lng={data.design_data.locationLng}
+                                                        placeholder="Buscar lugar de la ceremonia..."
+                                                        onLocationSelect={(loc) => handleDesignChange('location', loc)}
+                                                    />
+                                                    <div className="pt-2">
+                                                        <label className="block text-[9px] uppercase tracking-widest text-gray-400 mb-1">Nombre / Dirección</label>
+                                                        <input
+                                                            type="text"
+                                                            value={data.design_data.location}
+                                                            onChange={e => handleDesignChange('location', e.target.value)}
+                                                            className="w-full border-b border-[#E0E0E0] focus:ring-0 text-serif text-sm p-1 bg-transparent"
+                                                            placeholder="Nombre del lugar..."
+                                                        />
                                                     </div>
-                                                ))}
+                                                    <div>
+                                                        <label className="block text-[9px] uppercase tracking-widest text-gray-400 mb-1">Link Google Maps</label>
+                                                        <input
+                                                            type="text"
+                                                            value={data.design_data.locationUrl}
+                                                            onChange={e => handleDesignChange('locationUrl', e.target.value)}
+                                                            className="w-full border-b border-[#E0E0E0] focus:ring-0 text-[10px] p-1 bg-transparent text-blue-500 underline"
+                                                            placeholder="Link Google Maps..."
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-6">
+                                                    <p className="text-[10px] uppercase tracking-widest text-[#C5A059] font-bold">Lugar Recepción</p>
+                                                    <LocationPicker
+                                                        lat={data.design_data.receptionLat}
+                                                        lng={data.design_data.receptionLng}
+                                                        placeholder="Buscar lugar de la recepción..."
+                                                        onLocationSelect={(loc) => handleDesignChange('reception', loc)}
+                                                    />
+                                                    <div className="pt-2">
+                                                        <label className="block text-[9px] uppercase tracking-widest text-gray-400 mb-1">Nombre / Dirección</label>
+                                                        <input
+                                                            type="text"
+                                                            value={data.design_data.reception}
+                                                            onChange={e => handleDesignChange('reception', e.target.value)}
+                                                            className="w-full border-b border-[#E0E0E0] focus:ring-0 text-serif text-sm p-1 bg-transparent"
+                                                            placeholder="Nombre del lugar..."
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] uppercase tracking-widest text-gray-400 mb-1">Link Google Maps</label>
+                                                        <input
+                                                            type="text"
+                                                            value={data.design_data.receptionUrl}
+                                                            onChange={e => handleDesignChange('receptionUrl', e.target.value)}
+                                                            className="w-full border-b border-[#E0E0E0] focus:ring-0 text-[10px] p-1 bg-transparent text-blue-500 underline"
+                                                            placeholder="Link Google Maps..."
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
+
+                                            {/* Regalos */}
+                                            <div className="pt-6 border-t border-gray-100">
+                                                <p className="text-[10px] uppercase tracking-widest text-[#888888] font-bold mb-4">Mesa de Regalos</p>
+                                                <div className="grid grid-cols-3 gap-2 mb-4">
+                                                    {['none', 'registry', 'bank', 'text'].map(type => (
+                                                        <button
+                                                            key={type}
+                                                            type="button"
+                                                            onClick={() => handleDesignChange('giftSettings', { ...data.design_data.giftSettings, type })}
+                                                            className={`py-2 text-[8px] uppercase tracking-widest border rounded transition-all ${data.design_data.giftSettings.type === type ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]' : 'border-gray-200 text-gray-400'}`}
+                                                        >
+                                                            {type === 'none' ? 'Inactivo' : type === 'registry' ? 'Link Mesa' : type === 'bank' ? 'Cuentas' : 'Libre'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                {data.design_data.giftSettings.type === 'registry' && (
+                                                    <input type="text" value={data.design_data.giftSettings.registryUrl} onChange={e => handleDesignChange('giftSettings', { ...data.design_data.giftSettings, registryUrl: e.target.value })} className="w-full border-b border-gray-200 text-xs p-1" placeholder="Link a mesa de regalos (Amazon, etc)..." />
+                                                )}
+                                                {data.design_data.giftSettings.type === 'bank' && (
+                                                    <textarea value={data.design_data.giftSettings.bankDetails} onChange={e => handleDesignChange('giftSettings', { ...data.design_data.giftSettings, bankDetails: e.target.value })} rows={3} className="w-full border border-gray-100 rounded text-xs p-2" placeholder="Datos bancarios..." />
+                                                )}
+                                                {data.design_data.giftSettings.type === 'text' && (
+                                                    <input type="text" value={data.design_data.giftSettings.freeText} onChange={e => handleDesignChange('giftSettings', { ...data.design_data.giftSettings, freeText: e.target.value })} className="w-full border-b border-gray-200 text-xs p-1" placeholder="Ex: Lluvia de sobres..." />
+                                                )}
+                                            </div>
+
+                                            {/* Código de Vestimenta */}
+                                            <div className="pt-6 border-t border-gray-100">
+                                                <label className="block text-[10px] uppercase tracking-widest text-[#888888] mb-2 font-bold">Código de Vestimenta</label>
+                                                <div className="flex gap-4 items-center">
+                                                    <select
+                                                        value={data.design_data.dressCode.type}
+                                                        onChange={e => handleDesignChange('dressCode', { ...data.design_data.dressCode, type: e.target.value })}
+                                                        className="border-gray-100 text-xs rounded-lg"
+                                                    >
+                                                        <option value="formal">Gala / Formal</option>
+                                                        <option value="semi">Semi-Formal</option>
+                                                        <option value="cocktail">Cóctel</option>
+                                                        <option value="casual">Informal / Guayabera</option>
+                                                    </select>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Texto adicional (Ej: No blanco)..."
+                                                        value={data.design_data.dressCode.customText}
+                                                        onChange={e => handleDesignChange('dressCode', { ...data.design_data.dressCode, customText: e.target.value })}
+                                                        className="flex-1 border-b border-gray-100 text-xs p-1"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Hospedaje */}
+                                            <div className="pt-6 border-t border-gray-100">
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <label className="block text-[10px] uppercase tracking-widest text-[#888888] font-bold">Hospedaje Recomendado</label>
+                                                    <button type="button" onClick={() => handleDesignChange('accommodation', [...(data.design_data.accommodation || []), { name: '', link: '' }])} className="text-[#C5A059] text-[9px] uppercase tracking-widest border border-[#C5A059] px-2 py-0.5 hover:bg-[#C5A059] transition-all">+ Agregar Hotel</button>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    {(data.design_data.accommodation || []).map((hotel, idx) => (
+                                                        <div key={idx} className="flex gap-2">
+                                                            <input type="text" placeholder="Nombre Hotel" value={hotel.name} onChange={e => {
+                                                                const newAcc = data.design_data.accommodation.map((h, i) => i === idx ? { ...h, name: e.target.value } : h);
+                                                                handleDesignChange('accommodation', newAcc);
+                                                            }} className="flex-1 border-b border-gray-100 text-xs p-1" />
+                                                            <input type="text" placeholder="Link (opcional)" value={hotel.link} onChange={e => {
+                                                                const newAcc = data.design_data.accommodation.map((h, i) => i === idx ? { ...h, link: e.target.value } : h);
+                                                                handleDesignChange('accommodation', newAcc);
+                                                            }} className="flex-1 border-b border-gray-100 text-[10px] p-1" />
+                                                            <button type="button" onClick={() => handleDesignChange('accommodation', data.design_data.accommodation.filter((_, i) => i !== idx))} className="text-red-300">&times;</button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </DebugBoundary>
                                     </motion.div>
                                 )}
 
@@ -696,41 +767,27 @@ export default function Editor({ auth, event, designs }) {
                                                     animate={{ height: 'auto', opacity: 1 }}
                                                     className="space-y-6 overflow-hidden"
                                                 >
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        <div>
-                                                            <label className="block text-[9px] uppercase tracking-widest text-gray-400 mb-1">API Key (Opcional si está en .env)</label>
-                                                            <input
-                                                                type="text"
-                                                                placeholder="Clave de WeatherAPI..."
-                                                                value={data.design_data.weather.apiKey}
-                                                                onChange={e => handleDesignChange('weather', { ...data.design_data.weather, apiKey: e.target.value })}
-                                                                autoComplete="off"
-                                                                className="w-full border-0 border-b border-gray-100 text-xs p-1 focus:ring-0 focus:border-[#C5A059] bg-transparent"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-[9px] uppercase tracking-widest text-gray-400 mb-1">Nombre Ciudad (Display)</label>
-                                                            <input
-                                                                type="text"
-                                                                placeholder="Ciudad..."
-                                                                value={data.design_data.weather.city}
-                                                                onChange={e => handleDesignChange('weather', { ...data.design_data.weather, city: e.target.value })}
-                                                                className="w-full border-b border-gray-100 text-xs p-1 focus:ring-0 focus:border-[#C5A059] bg-transparent"
-                                                            />
-                                                        </div>
+                                                    <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100/50">
+                                                        <p className="text-[10px] text-blue-600 font-medium leading-relaxed">
+                                                            El sistema detectará automáticamente el clima basado en la ubicación que selecciones a continuación.
+                                                            {data.design_data.weather.city && (
+                                                                <span className="block mt-1 font-bold">📍 Ciudad detectada: {data.design_data.weather.city}</span>
+                                                            )}
+                                                        </p>
                                                     </div>
 
                                                     <div>
-                                                        <label className="block text-[9px] uppercase tracking-widest text-gray-400 mb-3">Ubicación Precisa para Pronóstico</label>
+                                                        <label className="block text-[9px] uppercase tracking-widest text-gray-400 mb-3">Ubicación para Pronóstico</label>
                                                         <DebugBoundary name="LocationPicker (Weather)">
                                                             <LocationPicker
                                                                 lat={data.design_data.weather.lat}
                                                                 lng={data.design_data.weather.lng}
-                                                                onLocationSelect={(lat, lng) => {
+                                                                onLocationSelect={(loc) => {
                                                                     handleDesignChange('weather', {
                                                                         ...data.design_data.weather,
-                                                                        lat,
-                                                                        lng
+                                                                        lat: loc.lat,
+                                                                        lng: loc.lng,
+                                                                        city: loc.city || data.design_data.weather.city
                                                                     });
                                                                 }}
                                                             />

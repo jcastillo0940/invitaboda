@@ -118,7 +118,7 @@ export default function Weather({ config, eventDate }) {
                         current: data.current,
                         alerts: data.alerts || []
                     });
-                } else {
+                } else if (data.forecast && data.forecast.forecastday && data.forecast.forecastday.length > 0) {
                     // Buscar el día exacto en el array de forecast
                     const targetDay = data.forecast.forecastday.find(d => d.date === eventDate);
                     const dayData = targetDay ? targetDay.day : data.forecast.forecastday[0].day;
@@ -129,8 +129,12 @@ export default function Weather({ config, eventDate }) {
                         min: Math.round(dayData.mintemp_c),
                         condition: dayData.condition
                     });
+                } else {
+                    // Fallback si no hay datos de forecast
+                    setWeather({ state: 1 });
                 }
             } catch (err) {
+
                 console.error("Clima Error:", err);
                 setError(err.message);
             } finally {

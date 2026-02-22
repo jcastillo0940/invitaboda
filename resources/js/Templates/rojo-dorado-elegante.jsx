@@ -26,6 +26,7 @@ export default function RojoDoradoElegante({ data, guestGroup = null }) {
     const mainColor = d.mainColor || '#D4AF37'; // Gold
     const secondaryColor = d.secondaryColor || '#8B0000'; // Dark Red / Wine
     const quote = d.quote || 'El amor es el lazo que une dos corazones en una sola melodía.';
+    const quoteSource = d.quoteSource || '';
     const ourStory = d.ourStory || '';
     const hashtag = d.hashtag || '';
 
@@ -153,6 +154,11 @@ export default function RojoDoradoElegante({ data, guestGroup = null }) {
                         <p className="text-2xl md:text-4xl font-light italic text-white/90 leading-relaxed font-serif">
                             "{quote}"
                         </p>
+                        {quoteSource && (
+                            <p className="mt-6 text-[10px] uppercase tracking-[0.4em] opacity-60 font-sans" style={{ color: mainColor }}>
+                                — {quoteSource} —
+                            </p>
+                        )}
                     </motion.div>
                 </div>
             </section>
