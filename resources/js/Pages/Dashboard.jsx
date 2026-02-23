@@ -14,31 +14,32 @@ import {
     Wine
 } from 'lucide-react';
 
-export default function Dashboard({ auth, events, stats, role }) {
+export default function Dashboard({ auth, events = [], stats = {}, role }) {
     const isPlanner = role === 'planner';
     const isCouple = role === 'couple';
 
+    // Paleta de colores Blueprint (Sin colores SaaS genéricos)
     const mainStats = [
         {
             label: isPlanner ? 'Bodas Gestionadas' : 'Mis Eventos',
-            value: stats.total_events,
+            value: stats.total_events || 0,
             icon: Calendar,
-            color: 'text-purple-600',
-            bg: 'bg-purple-50'
+            color: 'text-[#1A1A1A]',
+            bg: 'bg-[#F0F0F0]'
         },
         {
             label: 'Total Invitados',
-            value: stats.total_guests,
+            value: stats.total_guests || 0,
             icon: Users,
-            color: 'text-blue-600',
-            bg: 'bg-blue-50'
+            color: 'text-[#C5A059]',
+            bg: 'bg-[#C5A059]/10'
         },
         {
             label: 'Dentro del Evento',
-            value: stats.currently_inside,
+            value: stats.currently_inside || 0,
             icon: Wine,
-            color: 'text-green-600',
-            bg: 'bg-green-50'
+            color: 'text-[#1A1A1A]',
+            bg: 'bg-[#F0F0F0]'
         },
     ];
 
@@ -60,7 +61,7 @@ export default function Dashboard({ auth, events, stats, role }) {
                 </div>
             }
         >
-            <Head title="Dashboard" />
+            <Head title="Dashboard - Blueprint" />
 
             <div className="py-12 bg-[#F9F9F7] min-h-[calc(100vh-64px)]">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-12">
@@ -73,7 +74,7 @@ export default function Dashboard({ auth, events, stats, role }) {
                             </h3>
                             <p className="text-gray-500 font-sans text-sm">
                                 {isPlanner
-                                    ? 'Aquí tienes un resumen en tiempo real de la asistencia a tus eventos.'
+                                    ? 'Aquí tienes un resumen en tiempo real de la asistencia a tus eventos exclusivos.'
                                     : 'Todo listo para empezar a gestionar los invitados de tu gran día.'}
                             </p>
                         </div>
@@ -97,7 +98,7 @@ export default function Dashboard({ auth, events, stats, role }) {
                                 </div>
                                 <div>
                                     <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">{stat.label}</p>
-                                    <p className="text-3xl font-serif text-[#1A1A1A]">{stat.value}</p>
+                                    <p className="text-3xl font-serif text-[#1A1A1A] mt-1">{stat.value}</p>
                                 </div>
                             </motion.div>
                         ))}
@@ -123,12 +124,12 @@ export default function Dashboard({ auth, events, stats, role }) {
                                 >
                                     <div className="p-6 flex-1">
                                         <div className="flex justify-between items-start mb-4">
-                                            <div className="bg-gray-50 px-3 py-1 rounded text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                            <div className="bg-gray-50 px-3 py-1 rounded text-[10px] font-bold text-gray-400 uppercase tracking-widest border border-gray-100">
                                                 {new Date(event.date).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' })}
                                             </div>
-                                            <div className="flex gap-1">
+                                            <div className="flex gap-1 items-center">
                                                 {event.checked_in_groups_count > 0 && (
-                                                    <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+                                                    <span className="flex h-2 w-2 rounded-full bg-[#C5A059] animate-pulse"></span>
                                                 )}
                                                 <MoreHorizontal className="w-5 h-5 text-gray-300" />
                                             </div>
@@ -141,24 +142,28 @@ export default function Dashboard({ auth, events, stats, role }) {
                                                 <span className="text-gray-400 italic">Estado de Asistencia</span>
                                                 <span className="font-bold text-[#1A1A1A]">{event.checked_in_people || 0} de {event.checked_in_people + event.pending_arrival_people || 0}</span>
                                             </div>
+                                            
+                                            {/* Blueprint Progress Bar */}
                                             <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden flex">
                                                 <div
-                                                    className="bg-green-500 h-full transition-all duration-1000 border-r border-white"
+                                                    className="bg-[#1A1A1A] h-full transition-all duration-1000 border-r border-white"
                                                     style={{ width: `${(event.checked_in_people / (event.checked_in_people + event.pending_arrival_people || 1)) * 100}%` }}
                                                 ></div>
                                                 <div
-                                                    className="bg-amber-200 h-full transition-all duration-1000"
+                                                    className="bg-[#C5A059] opacity-50 h-full transition-all duration-1000"
                                                     style={{ width: `${(event.pending_arrival_people / (event.checked_in_people + event.pending_arrival_people || 1)) * 100}%` }}
                                                 ></div>
                                             </div>
+
+                                            {/* Progress Bar Legend */}
                                             <div className="flex justify-between text-[10px] font-sans pt-1">
                                                 <div className="flex items-center gap-1">
-                                                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                                    <span className="text-gray-500 uppercase">En Puerta</span>
+                                                    <div className="w-2 h-2 rounded-full bg-[#1A1A1A]"></div>
+                                                    <span className="text-gray-500 uppercase tracking-wider">En Puerta</span>
                                                 </div>
                                                 <div className="flex items-center gap-1">
-                                                    <div className="w-2 h-2 rounded-full bg-amber-200"></div>
-                                                    <span className="text-gray-500 uppercase">Por Llegar</span>
+                                                    <div className="w-2 h-2 rounded-full bg-[#C5A059] opacity-50"></div>
+                                                    <span className="text-gray-500 uppercase tracking-wider">Por Llegar</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -194,9 +199,9 @@ export default function Dashboard({ auth, events, stats, role }) {
                             ))}
 
                             {events.length === 0 && (
-                                <div className="col-span-full py-20 bg-white border-2 border-dashed border-gray-100 rounded-xl flex flex-col items-center justify-center text-center">
-                                    <Calendar className="w-12 h-12 text-gray-200 mb-4" />
-                                    <p className="text-gray-400 font-serif italic mb-6">No tienes eventos registrados aún.</p>
+                                <div className="col-span-full py-20 bg-white border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-center shadow-sm">
+                                    <Calendar className="w-12 h-12 text-gray-300 mb-4" />
+                                    <p className="text-gray-500 font-serif italic mb-6">No tienes eventos registrados aún.</p>
                                     <Link
                                         href={route('events.index')}
                                         className="bg-[#C5A059] text-white px-8 py-3 font-sans uppercase tracking-[0.2em] text-[10px] hover:bg-[#1A1A1A] transition-all"

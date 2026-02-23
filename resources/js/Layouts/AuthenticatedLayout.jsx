@@ -41,23 +41,22 @@ const Icons = {
     ),
 };
 
-// NavItem rediseñado para Sidebar Oscuro (DEFINIDO FUERA PARA EVITAR RE-RENDERS Y HOOK ISSUES)
+// NavItem actualizado con colores dorados y oscuros
 const NavItem = ({ href, active, icon: Icon, children }) => {
-    // Verificación defensiva del icono
     if (!Icon) return null;
 
     return (
         <Link
             href={href}
             className={`group flex items-center rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${active
-                ? 'bg-teal-500/10 text-teal-400'
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                ? 'bg-[#C5A059]/10 text-[#C5A059]'
+                : 'text-gray-400 hover:bg-[#2A2A2A] hover:text-white'
                 }`}
         >
             <Icon
                 className={`mr-3 h-5 w-5 flex-shrink-0 transition-colors duration-200 ${active
-                    ? 'text-teal-400'
-                    : 'text-slate-500 group-hover:text-slate-300'
+                    ? 'text-[#C5A059]'
+                    : 'text-gray-500 group-hover:text-gray-300'
                     }`}
             />
             {children}
@@ -70,30 +69,32 @@ export default function AuthenticatedLayout({ header, children }) {
     const user = auth?.user;
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    // Si no hay usuario (sesión expirada o similar), evitamos crash
     if (!user) return null;
 
-
     return (
-        <div className="flex h-screen overflow-hidden bg-gray-50 font-sans">
+        <div className="flex h-screen overflow-hidden bg-[#F9F9F7] font-sans selection:bg-[#C5A059] selection:text-white">
 
             {/* Overlay para móviles */}
             {sidebarOpen && (
                 <div
-                    className="fixed inset-0 z-20 bg-slate-900/60 backdrop-blur-sm transition-opacity lg:hidden"
+                    className="fixed inset-0 z-20 bg-black/60 backdrop-blur-sm transition-opacity lg:hidden"
                     onClick={() => setSidebarOpen(false)}
                 />
             )}
 
-            {/* Sidebar Lateral (SIEMPRE OSCURO Y ELEGANTE) */}
+            {/* Sidebar Lateral (Oscuro y Elegante) */}
             <aside
-                className={`fixed inset-y-0 left-0 z-30 w-64 transform flex-col border-r border-slate-800 bg-[#0f172a] transition-transform duration-300 ease-in-out lg:static lg:flex lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                className={`fixed inset-y-0 left-0 z-30 w-64 transform flex-col border-r border-[#2A2A2A] bg-[#1A1A1A] transition-transform duration-300 ease-in-out lg:static lg:flex lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
                     }`}
             >
-                <div className="flex h-16 shrink-0 items-center px-6 border-b border-slate-800">
-                    <Link href="/" className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center font-serif text-white font-bold">IB</div>
-                        <span className="text-white font-serif tracking-widest text-sm font-bold">INVITABODA</span>
+                {/* Brand Area */}
+                <div className="flex h-16 shrink-0 items-center px-6 border-b border-[#2A2A2A]">
+                    <Link href="/" className="flex items-center gap-3">
+                        <div className="w-8 h-8 border border-[#C5A059] flex items-center justify-center font-serif text-[#C5A059] font-bold text-sm">BP</div>
+                        <div className="flex flex-col">
+                            <span className="text-[#C5A059] font-serif tracking-widest text-sm uppercase italic">Blueprint</span>
+                            <span className="text-gray-500 font-sans tracking-[0.2em] text-[7px] uppercase">Elite Design & Details</span>
+                        </div>
                     </Link>
                 </div>
 
@@ -114,7 +115,7 @@ export default function AuthenticatedLayout({ header, children }) {
 
                     {user.role === 'admin' && (
                         <>
-                            <div className="mt-8 mb-2 px-4 text-[10px] uppercase tracking-[0.3em] text-slate-500 font-bold">
+                            <div className="mt-8 mb-2 px-4 text-[10px] uppercase tracking-[0.3em] text-gray-500 font-bold">
                                 Administración
                             </div>
                             <NavItem href={route('admin.dashboard')} active={route().current('admin.dashboard')} icon={Icons.Admin}>
@@ -131,16 +132,16 @@ export default function AuthenticatedLayout({ header, children }) {
                 </nav>
 
                 {/* Pie del Sidebar (Perfil de usuario) */}
-                <div className="border-t border-slate-800 p-4">
+                <div className="border-t border-[#2A2A2A] p-4">
                     <div className="flex items-center">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-500/20 text-teal-400 font-bold border border-teal-500/30">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#C5A059]/10 text-[#C5A059] font-bold border border-[#C5A059]/30">
                             {user.name.charAt(0)}
                         </div>
                         <div className="ml-3 truncate">
                             <p className="truncate text-sm font-medium text-white">
                                 {user.name}
                             </p>
-                            <p className="truncate text-xs text-slate-400">
+                            <p className="truncate text-xs text-gray-400">
                                 {user.email}
                             </p>
                         </div>
@@ -148,14 +149,14 @@ export default function AuthenticatedLayout({ header, children }) {
                 </div>
             </aside>
 
-            {/* Contenedor Principal (SIEMPRE CLARO) */}
+            {/* Contenedor Principal (Claro para lectura) */}
             <div className="flex flex-1 flex-col overflow-hidden">
                 {/* Navbar Superior */}
                 <header className="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center lg:hidden">
                         <button
                             type="button"
-                            className="text-gray-500 hover:text-gray-700 focus:outline-none"
+                            className="text-gray-500 hover:text-[#C5A059] transition-colors focus:outline-none"
                             onClick={() => setSidebarOpen(true)}
                         >
                             <span className="sr-only">Abrir sidebar</span>
@@ -172,10 +173,10 @@ export default function AuthenticatedLayout({ header, children }) {
                                     <span className="inline-flex rounded-md">
                                         <button
                                             type="button"
-                                            className="inline-flex items-center rounded-full bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none"
+                                            className="inline-flex items-center rounded-full bg-[#F9F9F7] px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 hover:text-gray-900 focus:outline-none"
                                         >
                                             <span className="hidden sm:inline-block">{user.name}</span>
-                                            <svg className="ml-2 h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                            <svg className="ml-2 h-4 w-4 text-[#C5A059]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                                             </svg>
                                         </button>
@@ -194,7 +195,7 @@ export default function AuthenticatedLayout({ header, children }) {
                 </header>
 
                 {/* Contenido Dinámico de la Página */}
-                <main className="flex-1 overflow-y-auto bg-gray-50/50 p-4 sm:p-6 lg:p-8 text-gray-900">
+                <main className="flex-1 overflow-y-auto bg-[#F9F9F7] p-4 sm:p-6 lg:p-8 text-gray-900">
                     {/* Header secundario (si la vista lo envía) */}
                     {header && (
                         <div className="mb-8 border-b border-gray-200 pb-4">
