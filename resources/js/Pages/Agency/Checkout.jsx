@@ -1,290 +1,419 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
-import { CreditCard, Smartphone, Banknote, Loader2, CheckCircle2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react'
+import axios from 'axios'
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
+import { Head, router } from '@inertiajs/react'
+import { motion } from 'framer-motion'
 
-export default function Checkout({ auth, plan, amount, orderNumber, tilopayConfig, user }) {
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [paymentMethod, setPaymentMethod] = useState('card');
-    const [yappyPhone, setYappyPhone] = useState('');
-    const [sinpeDni, setSinpeDni] = useState('');
-    const [sinpeTypeDni, setSinpeTypeDni] = useState('1');
-    const [sinpeInst, setSinpeInst] = useState(null);
-    const tilopayRef = useRef(null);
+// Métodos offline manejados externamente (no pasan por Tilopay)
+// Se agregan al select DESPUÉS de los métodos que devuelve Tilopay
+const OFFLINE_METHODS = [
+    { id: 'ach',   label: 'ACH / Transferencia bancaria' },
+    { id: 'yappy', label: 'Yappy'                        },
+]
+
+const OFFLINE_IDS = OFFLINE_METHODS.map(m => m.id)
+
+export default function Checkout({ plan, amount, orderNumber, user, callbackUrl }) {
+    // status: loading | ready | card | offline | processing | error
+    const [status, setStatus]               = useState('loading')
+    const [errorMsg, setErrorMsg]           = useState(null)
+    const [selectedMethod, setSelectedMethod] = useState(null)
+    const sdkLoaded                         = useRef(false)
+    const sdkInitialized                    = useRef(false)
+
+    const planLabel = plan === 'agency' ? 'Master Agency' : 'Elite Planner'
+    const planSub   = plan === 'agency' ? 'Eventos ilimitados y White-Label' : 'Hasta 5 eventos activos'
+
+    const buildRedirectUrl = () => {
+        const url = new URL(callbackUrl)
+        url.searchParams.set('order_number', orderNumber)
+        return url.toString()
+    }
 
     useEffect(() => {
-        const initTilopay = async () => {
-            try {
-                // 1. Get Token from Backend
-                const response = await axios.post(route('tilopay.token'), {
-                    amount: amount,
-                    currency: 'USD',
-                    orderNumber: orderNumber
-                });
+        if (sdkLoaded.current) return
+        sdkLoaded.current = true
 
-                const { token } = response.data;
+        if (typeof window.Tilopay !== 'undefined') {
+            fetchTokenAndInit()
+            return
+        }
 
-                // 2. Initialize Tilopay SDK
-                // We assume Tilopay is already loaded via <script> in app.blade.php
-                if (typeof Tilopay !== 'undefined') {
-                    const setup = await Tilopay.Init({
-                        token: token,
-                        currency: 'USD',
-                        language: 'es',
-                        amount: amount.toFixed(2),
-                        billToEmail: user.email,
-                        orderNumber: orderNumber,
-                        billToFirstName: user.name.split(' ')[0],
-                        billToLastName: user.name.split(' ')[1] || 'Usuario',
-                        billToAddress: 'San Jose, Costa Rica', // Dynamic address can be added if needed
-                        capture: 1,
-                        redirect: route('payment.callback'),
-                        subscription: 0, // 1 for recurring
-                    });
+        const existing = document.getElementById('tilopay-sdk')
+        if (existing) existing.remove()
 
-                    console.log('Tilopay initialized', setup);
-                    setLoading(false);
-                } else {
-                    setError('El SDK de Tilopay no se cargó correctamente.');
+        const script   = document.createElement('script')
+        script.id      = 'tilopay-sdk'
+        script.src     = 'https://app.tilopay.com/sdk/v2/sdk_tpay.min.js'
+        script.async   = false
+        script.onload  = () => fetchTokenAndInit()
+        script.onerror = () => {
+            setErrorMsg('No se pudo cargar el SDK de Tilopay.')
+            setStatus('error')
+        }
+        document.body.appendChild(script)
+    }, [])
+
+    const fetchTokenAndInit = async () => {
+        if (sdkInitialized.current) return
+        sdkInitialized.current = true
+
+        try {
+            const res         = await axios.post('/tilopay/token', { orderNumber })
+            const token       = res.data.token
+            const redirectUrl = buildRedirectUrl()
+
+            const initialize = await window.Tilopay.Init({
+                token,
+                currency:          'USD',
+                language:          'es',
+                amount:            parseFloat(amount),
+                billToFirstName:   user?.name?.split(' ')[0] || 'Cliente',
+                billToLastName:    user?.name?.split(' ').slice(1).join(' ') || 'N',
+                billToAddress:     user?.address || 'N/A',
+                billToAddress2:    '',
+                billToCity:        user?.city || '',
+                billToState:       user?.state || '',
+                billToZipPostCode: user?.zip || '',
+                billToCountry:     user?.country || 'PA',
+                billToTelephone:   user?.phone || '',
+                billToEmail:       user?.email || '',
+                orderNumber,
+                capture:           1,
+                redirect:          redirectUrl,
+                subscription:      0,
+                hashVersion:       'V2',
+            })
+
+            console.log('[Tilopay] Init response:', initialize)
+            console.log('[Tilopay] Methods:', initialize?.methods)
+
+            // ─── Poblar select con métodos de Tilopay ────────────────────────
+            const select = document.getElementById('tlpy_payment_method')
+
+            if (initialize?.methods) {
+                initialize.methods.forEach(m => {
+                    const opt   = document.createElement('option')
+                    opt.value   = m.id  // ← ID real de Tilopay, no lo tocamos
+                    opt.text    = m.name.toLowerCase() === 'contado'
+                                    ? 'Pago en línea (tarjeta)'
+                                    : m.name
+                    opt.dataset.tilopay = '1'
+                    select.appendChild(opt)
+                })
+            }
+
+            // ─── Agregar métodos offline externos al final del select ─────────
+            OFFLINE_METHODS.forEach(m => {
+                const opt           = document.createElement('option')
+                opt.value           = m.id
+                opt.text            = m.label
+                opt.dataset.offline = '1'
+                select.appendChild(opt)
+            })
+
+            // ─── Listener de cambio ───────────────────────────────────────────
+            select.addEventListener('change', (e) => {
+                const val         = e.target.value
+                const selectedOpt = e.target.options[e.target.selectedIndex]
+                const isOffline   = selectedOpt?.dataset?.offline === '1'
+                const label       = selectedOpt?.text || ''
+
+                console.log('[Tilopay] Select change → value:', val, '| isOffline:', isOffline)
+
+                if (!val) {
+                    setStatus('ready')
+                    setSelectedMethod(null)
+                    document.getElementById('tlpy_card_payment_div').style.display  = 'none'
+                    document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
+                    return
                 }
-            } catch (err) {
-                console.error('Error initializing Tilopay:', err);
-                setError('Error al conectar con la pasarela de pagos.');
-                setLoading(false);
-            }
-        };
 
-        const checkSdkLoaded = setInterval(() => {
-            if (typeof Tilopay !== 'undefined') {
-                clearInterval(checkSdkLoaded);
-                initTilopay();
-            }
-        }, 500);
+                if (isOffline) {
+                    setSelectedMethod({ id: val, label })
+                    setStatus('offline')
+                    document.getElementById('tlpy_card_payment_div').style.display  = 'none'
+                    document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
+                } else {
+                    setSelectedMethod({ id: val, label })
+                    setStatus('card')
 
-        return () => clearInterval(checkSdkLoaded);
-    }, []);
+                    // Delay para que el SDK de Tilopay procese el cambio primero
+                    setTimeout(() => {
+                        const cardDiv = document.getElementById('tlpy_card_payment_div')
+                        if (cardDiv) cardDiv.style.display = 'block'
+                        document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
 
-    const handleStartPayment = async () => {
-        if (paymentMethod === 'yappy') {
-            if (!yappyPhone) {
-                alert('Por favor ingrese su número de Yappy');
-                return;
-            }
-            Tilopay.updateOptions({ phoneYappy: yappyPhone });
+                        // Verificar que el SDK registró el valor correctamente
+                        console.log('[Tilopay] After timeout → tlpy_payment_method.value:', document.getElementById('tlpy_payment_method').value)
+                    }, 100)
+                }
+            })
+
+            setStatus('ready')
+
+        } catch (err) {
+            console.error('[Tilopay] Init error:', err)
+            setErrorMsg('Error al inicializar el formulario de pago.')
+            setStatus('error')
+        }
+    }
+
+    const handlePay = async () => {
+        // Verificación de seguridad antes de intentar el pago
+        const methodValue = document.getElementById('tlpy_payment_method')?.value
+        console.log('[Tilopay] handlePay → tlpy_payment_method.value:', methodValue)
+
+        if (!methodValue) {
+            setErrorMsg('Por favor selecciona un método de pago.')
+            return
         }
 
-        if (paymentMethod === 'sinpe') {
-            if (!sinpeDni) {
-                alert('Por favor ingrese su DNI para SINPE');
-                return;
-            }
-            try {
-                Tilopay.updateOptions({
-                    typeDni: sinpeTypeDni,
-                    dni: sinpeDni
-                });
-                const inst = await Tilopay.getSinpeMovil();
-                setSinpeInst(inst);
-                return; // SINPE doesn't need startPayment
-            } catch (err) {
-                console.error('SINPE Error:', err);
-                alert('Error al generar datos de SINPE');
-                return;
-            }
-        }
+        setStatus('processing')
+        setErrorMsg(null)
 
-        Tilopay.startPayment();
-    };
+        try {
+            const result = await window.Tilopay.startPayment()
+            console.log('[Tilopay] startPayment result:', result)
+
+            if (result?.error || result?.type === 'error') {
+                setErrorMsg(result?.message || result?.error || 'El pago fue rechazado.')
+                setStatus('card')
+                return
+            }
+
+            if (result?.response === '1' || result?.responseCode === '1') {
+                window.location.href = buildRedirectUrl() + '&response=1'
+                return
+            }
+
+            if (result !== undefined && result !== null) {
+                setErrorMsg('El pago no pudo completarse. Verifica los datos de tu tarjeta.')
+                setStatus('card')
+            }
+            // null/undefined = Tilopay redirigió automáticamente ✓
+
+        } catch (err) {
+            console.error('[Tilopay] startPayment error:', err)
+            setErrorMsg('Error al procesar el pago. Intenta de nuevo.')
+            setStatus('card')
+        }
+    }
+
+    const inputClass = "w-full border border-[#E0E0E0] bg-[#F9F9F7] px-4 py-3 text-sm text-[#1A1A1A] focus:outline-none focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]/30 transition-colors"
+    const labelClass = "block text-[10px] uppercase tracking-[0.25em] text-[#888888] font-bold mb-2"
+
+    const showSdkForm = ['ready', 'card', 'processing'].includes(status)
 
     return (
         <AuthenticatedLayout
-            header={<h2 className="text-xl font-semibold leading-tight text-[#1A1A1A] font-serif uppercase tracking-widest">Finalizar Compra</h2>}
+            header={
+                <h2 className="text-xl font-semibold leading-tight text-[#1A1A1A] font-serif">
+                    Completar Pago
+                </h2>
+            }
         >
-            <Head title="Checkout - Tilopay" />
+            <Head title="Checkout" />
 
-            <div className="py-12 bg-[#FAF9F6] min-h-screen">
-                <div className="max-w-5xl mx-auto px-6 grid lg:grid-cols-5 gap-8">
-
-                    {/* Resumen de Compra - Izquierda */}
-                    <div className="lg:col-span-2 space-y-6">
-                        <div className="bg-white p-8 border border-gray-100 shadow-sm rounded-2xl">
-                            <h3 className="text-[10px] uppercase tracking-[0.3em] text-[#C5A059] font-bold mb-6">Tu Pedido</h3>
-
-                            <div className="flex justify-between items-end mb-4 pb-4 border-b border-gray-50">
-                                <div>
-                                    <p className="font-serif text-lg text-[#1A1A1A] capitalize">Plan {plan}</p>
-                                    <p className="text-[10px] text-gray-400 uppercase tracking-widest">Pago único / Mes</p>
+            <div className="py-12 bg-[#F9F9F7]">
+                <div className="max-w-4xl mx-auto px-6">
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="grid md:grid-cols-5 gap-8"
+                    >
+                        {/* ── LEFT: Resumen ─────────────────────────────────── */}
+                        <div className="md:col-span-2">
+                            <div className="bg-[#1A1A1A] p-8 h-full flex flex-col">
+                                <p className="text-[10px] uppercase tracking-[0.3em] text-[#C5A059] font-bold mb-6">
+                                    Resumen de orden
+                                </p>
+                                <div className="border-b border-[#2A2A2A] pb-6 mb-6">
+                                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#666] mb-2">{planSub}</p>
+                                    <h3 className="text-2xl font-serif text-white mb-1">{planLabel}</h3>
+                                    <div className="flex items-baseline gap-2 mt-4">
+                                        <span className="text-4xl font-serif text-[#C5A059]">${amount}</span>
+                                        <span className="text-[#666] text-sm">USD / mes</span>
+                                    </div>
                                 </div>
-                                <span className="font-sans text-xl font-bold">${amount}</span>
-                            </div>
-
-                            <div className="space-y-3">
-                                <div className="flex justify-between text-xs">
-                                    <span className="text-gray-400">Orden</span>
-                                    <span className="font-mono text-gray-600">{orderNumber}</span>
-                                </div>
-                                <div className="flex justify-between text-lg pt-4 border-t border-gray-50 font-bold text-[#1A1A1A]">
-                                    <span className="font-serif italic font-normal">Total</span>
-                                    <span>${amount} USD</span>
+                                <ul className="space-y-3 flex-1">
+                                    {(plan === 'agency'
+                                        ? ['Eventos Ilimitados', 'White-Label (Tu Marca)', 'Panel para Clientes', 'Soporte VIP 24/7', 'Dominio Personalizado']
+                                        : ['Hasta 5 Eventos Activos', 'Diseños Premium', 'RSVP Personalizado', 'Soporte Prioritario']
+                                    ).map((f, i) => (
+                                        <li key={i} className="flex items-center gap-3 text-sm text-[#999]">
+                                            <svg className="w-4 h-4 text-[#C5A059] shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+                                            </svg>
+                                            {f}
+                                        </li>
+                                    ))}
+                                </ul>
+                                <div className="mt-8 pt-6 border-t border-[#2A2A2A]">
+                                    <p className="text-[10px] text-[#555] uppercase tracking-widest">Orden</p>
+                                    <p className="text-xs text-[#666] mt-1 font-mono">{orderNumber}</p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="bg-[#1A1A1A] p-8 rounded-2xl text-white">
-                            <h4 className="text-[10px] uppercase tracking-[0.3em] text-[#C5A059] font-bold mb-4">Preguntas Frecuentes</h4>
-                            <div className="space-y-4">
-                                <p className="text-[11px] leading-relaxed text-gray-400">
-                                    <span className="text-white block font-bold mb-1">¿Cuándo se activa mi plan?</span>
-                                    Instantáneamente después de confirmar el pago.
-                                </p>
-                                <p className="text-[11px] leading-relaxed text-gray-400">
-                                    <span className="text-white block font-bold mb-1">¿Es seguro?</span>
-                                    Usamos Tilopay con protocolos de seguridad bancaria y 3DS.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                        {/* ── RIGHT: Formulario ─────────────────────────────── */}
+                        <div className="md:col-span-3">
+                            <div className="bg-white border border-[#E0E0E0] p-8 min-h-[400px]">
 
-                    {/* Pasarela de Pago - Derecha */}
-                    <div className="lg:col-span-3">
-                        <div className="bg-white border border-gray-100 shadow-xl rounded-2xl overflow-hidden min-h-[500px] flex flex-col">
+                                {/* Error banner */}
+                                {errorMsg && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded"
+                                    >
+                                        {errorMsg}
+                                    </motion.div>
+                                )}
 
-                            {loading && (
-                                <div className="flex-1 flex flex-col items-center justify-center p-20 text-center">
-                                    <Loader2 className="w-12 h-12 animate-spin text-[#C5A059] mb-4" />
-                                    <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-gray-400">Cargando pasarela segura...</p>
-                                </div>
-                            )}
-
-                            {error && (
-                                <div className="flex-1 flex flex-col items-center justify-center p-20 text-center">
-                                    <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6">
-                                        <Banknote className="w-8 h-8" />
+                                {/* ── Loading ── */}
+                                {status === 'loading' && (
+                                    <div className="text-center py-16">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#C5A059] mx-auto mb-4"></div>
+                                        <p className="text-[#888] text-xs uppercase tracking-widest">Cargando...</p>
                                     </div>
-                                    <p className="text-sm font-serif mb-2">{error}</p>
-                                    <button onClick={() => window.location.reload()} className="text-[10px] uppercase tracking-widest text-[#C5A059] font-bold underline">Reintentar</button>
-                                </div>
-                            )}
+                                )}
 
-                            {!loading && !error && (
-                                <div className="p-8 md:p-12 payFormTilopay space-y-8">
-                                    <h3 className="text-[10px] uppercase tracking-[0.3em] text-[#1A1A1A] font-bold mb-8 flex items-center gap-2">
-                                        <CreditCard className="w-4 h-4 text-[#C5A059]" /> Método de Pago
-                                    </h3>
-
-                                    {/* Select de Métodos Personalizado */}
-                                    <div className="grid grid-cols-3 gap-2 mb-8">
-                                        <button
-                                            onClick={() => setPaymentMethod('card')}
-                                            className={`p-4 border rounded-xl flex flex-col items-center gap-2 transition-all ${paymentMethod === 'card' ? 'border-[#C5A059] bg-[#C5A059]/5' : 'border-gray-100 grayscale hover:grayscale-0'}`}
-                                        >
-                                            <CreditCard className={`w-5 h-5 ${paymentMethod === 'card' ? 'text-[#C5A059]' : 'text-gray-300'}`} />
-                                            <span className="text-[8px] uppercase tracking-widest font-bold">Tarjeta</span>
-                                        </button>
-                                        <button
-                                            onClick={() => setPaymentMethod('yappy')}
-                                            className={`p-4 border rounded-xl flex flex-col items-center gap-2 transition-all ${paymentMethod === 'yappy' ? 'border-[#C5A059] bg-[#C5A059]/5' : 'border-gray-100 grayscale hover:grayscale-0'}`}
-                                        >
-                                            <Smartphone className={`w-5 h-5 ${paymentMethod === 'yappy' ? 'text-[#C5A059]' : 'text-gray-300'}`} />
-                                            <span className="text-[8px] uppercase tracking-widest font-bold">Yappy</span>
-                                        </button>
-                                        <button
-                                            onClick={() => setPaymentMethod('sinpe')}
-                                            className={`p-4 border rounded-xl flex flex-col items-center gap-2 transition-all ${paymentMethod === 'sinpe' ? 'border-[#C5A059] bg-[#C5A059]/5' : 'border-gray-100 grayscale hover:grayscale-0'}`}
-                                        >
-                                            <Banknote className={`w-5 h-5 ${paymentMethod === 'sinpe' ? 'text-[#C5A059]' : 'text-gray-300'}`} />
-                                            <span className="text-[8px] uppercase tracking-widest font-bold">SINPE</span>
-                                        </button>
+                                {/* ── Processing ── */}
+                                {status === 'processing' && (
+                                    <div className="text-center py-16">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#C5A059] mx-auto mb-4"></div>
+                                        <p className="text-[#888] text-xs uppercase tracking-widest">Procesando pago...</p>
+                                        <p className="text-[#BBB] text-[10px] mt-2">No cierres esta ventana</p>
                                     </div>
+                                )}
 
-                                    {/* Divs Obligatorios de Tilopay */}
-                                    <div className={paymentMethod === 'card' ? 'block animate-in fade-in slide-in-from-top-4' : 'hidden'}>
-                                        <div id="tlpy_card_payment_div" className="space-y-4"></div>
-                                    </div>
-
-                                    <div className={paymentMethod === 'yappy' ? 'block animate-in fade-in slide-in-from-top-4' : 'hidden'}>
-                                        <div className="space-y-4">
-                                            <label className="block text-[10px] uppercase tracking-widest text-gray-400 font-bold">Número de Teléfono Yappy</label>
-                                            <input
-                                                id="tlpy_phone_number"
-                                                type="text"
-                                                value={yappyPhone}
-                                                onChange={(e) => setYappyPhone(e.target.value)}
-                                                className="w-full border-0 border-b border-gray-100 focus:border-[#C5A059] focus:ring-0 text-lg px-0 py-3 font-serif"
-                                                placeholder="6000-0000"
-                                            />
-                                            <div id="tlpy_yappy_payment_div"></div>
+                                {/* ── OFFLINE: ACH / Yappy ── */}
+                                {status === 'offline' && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="py-2"
+                                    >
+                                        <div className="flex items-center justify-center w-14 h-14 border border-[#C5A059]/30 bg-[#C5A059]/5 mx-auto mb-5">
+                                            <svg className="w-7 h-7 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
                                         </div>
-                                    </div>
 
-                                    <div className={paymentMethod === 'sinpe' ? 'block animate-in fade-in slide-in-from-top-4' : 'hidden'}>
-                                        {sinpeInst ? (
-                                            <div className="bg-teal-50 p-6 rounded-2xl border border-teal-100 text-center">
-                                                <CheckCircle2 className="w-10 h-10 text-teal-500 mx-auto mb-4" />
-                                                <h4 className="font-serif text-lg text-teal-900 mb-2">Instrucciones SINPE</h4>
-                                                <p className="text-sm text-teal-700 leading-relaxed">{sinpeInst.message}</p>
-                                                <div className="mt-4 p-4 bg-white rounded-xl font-mono text-lg font-bold text-teal-800">
-                                                    #{sinpeInst.number} <br />
-                                                    Monto: {sinpeInst.currency} {sinpeInst.amount}
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-6">
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <label className="block text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-2">Tipo DNI</label>
-                                                        <select
-                                                            value={sinpeTypeDni}
-                                                            onChange={(e) => setSinpeTypeDni(e.target.value)}
-                                                            className="w-full border-gray-100 rounded-lg text-sm focus:border-[#C5A059] focus:ring-[#C5A059]/20"
-                                                        >
-                                                            <option value="1">Cédula Identidad</option>
-                                                            <option value="2">Jurídica</option>
-                                                            <option value="6">DIMEX</option>
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-2">DNI / Cédula</label>
-                                                        <input
-                                                            type="text"
-                                                            value={sinpeDni}
-                                                            onChange={(e) => setSinpeDni(e.target.value)}
-                                                            className="w-full border-gray-100 rounded-lg text-sm focus:border-[#C5A059] focus:ring-[#C5A059]/20"
-                                                            placeholder="000000000"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                        <h3 className="text-center font-serif text-xl text-[#1A1A1A] mb-1">
+                                            Pago pendiente de verificación
+                                        </h3>
+                                        <p className="text-center text-[#999] text-xs leading-relaxed mt-2 mb-5 max-w-xs mx-auto">
+                                            Seleccionaste <span className="text-[#C5A059] font-semibold">{selectedMethod?.label}</span>. Una vez que realices el pago, nuestro equipo lo verificará y activará tu plan en menos de 24 horas.
+                                        </p>
 
-                                    {/* Botón Acción Tilopay */}
-                                    {(!sinpeInst || paymentMethod !== 'sinpe') && (
+                                        <div className="bg-[#F9F9F7] border border-[#E0E0E0] p-4 mb-5 text-xs space-y-3">
+                                            {[
+                                                ['Plan',   planLabel],
+                                                ['Monto',  `$${amount} USD/mes`],
+                                                ['Método', selectedMethod?.label],
+                                                ['Orden',  orderNumber],
+                                                ['Email',  user?.email],
+                                            ].map(([k, v]) => (
+                                                <div key={k} className="flex justify-between">
+                                                    <span className="uppercase tracking-widest text-[#AAA]">{k}</span>
+                                                    <span className="font-mono text-[#555]">{v}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="bg-amber-50 border border-amber-200 p-3 mb-6 text-xs text-amber-700 leading-relaxed">
+                                            📧 Recibirás un correo en <strong>{user?.email}</strong> cuando tu pago sea confirmado.
+                                        </div>
+
                                         <button
-                                            onClick={handleStartPayment}
-                                            className="w-full bg-[#1A1A1A] text-white py-5 rounded-xl font-sans uppercase tracking-[0.3em] text-[10px] font-bold hover:bg-[#C5A059] hover:shadow-xl hover:shadow-[#C5A059]/20 transition-all active:scale-[0.98]"
+                                            onClick={() => router.visit(route('dashboard'))}
+                                            className="w-full bg-[#1A1A1A] hover:bg-[#C5A059] text-white py-4 font-sans uppercase tracking-[0.2em] text-[10px] transition-all"
                                         >
-                                            {paymentMethod === 'sinpe' ? 'Generar SINPE' : `Pagar $${amount} USD`}
+                                            Entendido — Ir al Dashboard
                                         </button>
-                                    )}
+                                        <button
+                                            onClick={() => { setStatus('ready'); setSelectedMethod(null) }}
+                                            className="w-full mt-3 text-[#AAA] hover:text-[#C5A059] text-[10px] uppercase tracking-widest transition-colors py-2"
+                                        >
+                                            ← Cambiar método de pago
+                                        </button>
+                                    </motion.div>
+                                )}
 
-                                    {/* Div Obligatorio para 3DS */}
-                                    <div id="responseTilopay" className="mt-4"></div>
+                                {/* ── SDK FORM: siempre en DOM, Tilopay lo requiere ── */}
+                                <div style={{ display: showSdkForm && status !== 'processing' ? 'block' : 'none' }}>
+                                    <p className="text-[10px] uppercase tracking-[0.3em] text-[#888] font-bold mb-8">
+                                        Datos de pago
+                                    </p>
+                                    <div className="payFormTilopay space-y-6">
 
-                                    <div className="flex items-center justify-center gap-6 pt-12 opacity-30 grayscale">
-                                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/2560px-Visa_Inc._logo.svg.png" className="h-4 object-contain" />
-                                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/1280px-Mastercard-logo.svg.png" className="h-6 object-contain" />
-                                        <img src="https://app.tilopay.com/assets/img/logo-tilopay-white.png" className="h-5 object-contain invert" />
+                                        {/* Select de Tilopay — con IDs reales + offline al final */}
+                                        <div>
+                                            <label className={labelClass}>Método de pago</label>
+                                            <select
+                                                id="tlpy_payment_method"
+                                                name="tlpy_payment_method"
+                                                className={inputClass}
+                                            >
+                                                <option value="">Seleccione método de pago</option>
+                                            </select>
+                                        </div>
+
+                                        {/* ── Campos tarjeta (Tilopay los usa internamente) ── */}
+                                        {/* FIX: display:none al inicio — el SDK lo muestra al seleccionar */}
+                                        <div id="tlpy_card_payment_div" className="space-y-6" style={{ display: 'none' }}>
+                                            <div id="saved-cards-wrapper" style={{ display: 'none' }}>
+                                                <label className={labelClass}>Tarjetas guardadas</label>
+                                                <select id="tlpy_saved_cards" name="tlpy_saved_cards" className={inputClass}>
+                                                    <option value="">Nueva tarjeta</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className={labelClass}>Número de tarjeta</label>
+                                                <input type="text" id="tlpy_cc_number" name="tlpy_cc_number" placeholder="0000 0000 0000 0000" className={inputClass} />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className={labelClass}>Vencimiento</label>
+                                                    <input type="text" id="tlpy_cc_expiration_date" name="tlpy_cc_expiration_date" placeholder="MM/AA" className={inputClass} />
+                                                </div>
+                                                <div>
+                                                    <label className={labelClass}>CVV</label>
+                                                    <input type="text" id="tlpy_cvv" name="tlpy_cvv" placeholder="123" className={inputClass} />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Yappy oculto — requerido por SDK internamente */}
+                                        <div id="tlpy_yappy_payment_div" style={{ display: 'none' }}>
+                                            <input type="hidden" id="tlpy_phone_number" name="tlpy_phone_number" />
+                                        </div>
+
+                                        {/* Botón pagar — solo con tarjeta online seleccionada */}
+                                        {status === 'card' && (
+                                            <button
+                                                onClick={handlePay}
+                                                className="w-full bg-[#1A1A1A] hover:bg-[#C5A059] text-white py-4 font-sans uppercase tracking-[0.2em] text-[10px] transition-all border border-[#1A1A1A] hover:border-[#C5A059]"
+                                            >
+                                                Pagar ${amount} USD
+                                            </button>
+                                        )}
+
+                                        <p className="text-center text-[10px] text-[#AAAAAA] uppercase tracking-widest">
+                                            Pago seguro procesado por Tilopay
+                                        </p>
                                     </div>
                                 </div>
-                            )}
+
+                                {/* Requerido por SDK para flujo 3DS */}
+                                <div id="responseTilopay"></div>
+                            </div>
                         </div>
-                    </div>
+                    </motion.div>
                 </div>
             </div>
         </AuthenticatedLayout>
-    );
+    )
 }

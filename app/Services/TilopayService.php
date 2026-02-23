@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class TilopayService
 {
@@ -14,108 +15,147 @@ class TilopayService
 
     public function __construct()
     {
-        $this->apiKey = config('services.tilopay.key');
+        $this->apiKey  = config('services.tilopay.key');
         $this->apiUser = config('services.tilopay.user');
         $this->apiPass = config('services.tilopay.password');
-        $this->baseUrl = config('services.tilopay.environment') === 'production'
-            ? 'https://app.tilopay.com/'
-            : 'https://app.tilopay.com/'; // Tilopay often uses same base or specific sandbox subdomain
+        $this->baseUrl = 'https://app.tilopay.com/';
     }
 
     /**
-     * Get bearer token for API calls
+     * Obtiene el Bearer Token via loginSdk.
+     * Cachea el token hasta 55 minutos para evitar llamadas innecesarias.
      */
-    protected function getBearerToken()
+    public function getBearerToken(): ?string
     {
-        // Tilopay V2 often requires api_key even for logic, or uses different field names
-        $response = Http::post($this->baseUrl . 'api/v1/login', [
-            'api_user' => $this->apiUser,
-            'api_password' => $this->apiPass,
-            'api_key' => $this->apiKey, // Some versions require this here too
-        ]);
+        // Usar token cacheado si existe (evita los 12+ tokens que veíamos en logs)
+        $cacheKey = 'tilopay_bearer_token';
 
-        if ($response->successful()) {
-            return $response->json('access_token');
+        if (Cache::has($cacheKey)) {
+            return Cache::get($cacheKey);
         }
 
-        // Try alternative: some users report 'username' instead of 'api_user'
-        $responseAlt = Http::post($this->baseUrl . 'api/v1/login', [
-            'username' => $this->apiUser,
-            'password' => $this->apiPass,
-            'api_key' => $this->apiKey,
-        ]);
-
-        if ($responseAlt->successful()) {
-            return $responseAlt->json('access_token');
-        }
-
-        Log::error('Tilopay Login Failed', [
-            'status' => $response->status(),
-            'response' => $response->json(),
-            'baseUrl' => $this->baseUrl
-        ]);
-        return null;
-    }
-
-    /**
-     * Get SDK Token for Frontend Init
-     */
-    public function getSdkToken($amount, $currency, $orderNumber)
-    {
-        $token = $this->getBearerToken();
-        if (!$token)
-            return null;
-
-        $response = Http::withToken($token)
-            ->post($this->baseUrl . 'api/v1/sdk/getToken', [
-                'api_key' => $this->apiKey,
-                'amount' => $amount,
-                'currency' => $currency,
-                'order_number' => $orderNumber,
+        try {
+            $response = Http::asJson()->post($this->baseUrl . 'api/v1/loginSdk', [
+                'apiuser'  => $this->apiUser,
+                'password' => $this->apiPass,
+                'key'      => $this->apiKey,
             ]);
 
-        if ($response->successful()) {
-            return $response->json('sdk_token');
+            Log::info('Tilopay loginSdk Response', [
+                'status'   => $response->status(),
+                'response' => $response->json(),
+            ]);
+
+            if ($response->successful() && isset($response['access_token'])) {
+                $token = $response['access_token'];
+
+                // Cachear por 55 min (el token dura ~60 min según expires_in)
+                Cache::put($cacheKey, $token, now()->addMinutes(55));
+
+                return $token;
+            }
+
+            Log::error('Tilopay loginSdk Failed', [
+                'status'   => $response->status(),
+                'response' => $response->json() ?? $response->body(),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Tilopay loginSdk Exception', ['message' => $e->getMessage()]);
         }
 
-        Log::error('Tilopay SDK Token Generation Failed', $response->json() ?? []);
         return null;
     }
 
     /**
-     * Create Recurring Payments (Subscriptions)
+     * Verifica el estado de una orden contra la API de Tilopay.
+     * Se usa en el callback para confirmar que el pago fue aprobado.
      */
-    public function createRecurringPayments($reason, $users = [], $groups = [])
+    public function verifyPayment(string $orderNumber): bool
     {
-        $token = $this->getBearerToken();
-        if (!$token)
-            return null;
+        $bearer = $this->getBearerToken();
+        if (!$bearer) {
+            Log::error('Tilopay verifyPayment: No se pudo obtener bearer token');
+            return false;
+        }
 
-        $response = Http::withToken($token)
+        try {
+            $response = Http::withToken($bearer)
+                ->get($this->baseUrl . 'api/v1/order/' . $orderNumber);
+
+            // LOG CRÍTICO: ver la estructura real que devuelve Tilopay
+            Log::info("Tilopay verifyPayment response para [{$orderNumber}]", [
+                'status_code' => $response->status(),
+                'body'        => $response->json(),
+            ]);
+
+            if ($response->successful()) {
+                $body   = $response->json();
+                $status = $body['status'] ?? $body['response'] ?? $body['state'] ?? null;
+
+                Log::info("Tilopay verifyPayment status extraído: [{$status}]");
+
+                // Cubrir todos los valores posibles que usa Tilopay
+                return in_array($status, [
+                    'approved',
+                    'paid',
+                    'completed',
+                    'success',
+                    '1',
+                    1,
+                ], strict: false);
+            }
+
+            Log::error('Tilopay verifyPayment Failed', [
+                'order'    => $orderNumber,
+                'status'   => $response->status(),
+                'response' => $response->json() ?? $response->body(),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Tilopay verifyPayment Exception', [
+                'order'   => $orderNumber,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        return false;
+    }
+
+    /**
+     * Cobros masivos o recurrentes.
+     */
+    public function createRecurringPayments(string $reason, array $users = []): ?array
+    {
+        $bearer = $this->getBearerToken();
+        if (!$bearer) return null;
+
+        $response = Http::withToken($bearer)
+            ->asJson()
             ->post($this->baseUrl . 'api/v1/collect/set/payments', [
-                'key' => $this->apiKey,
+                'key'     => $this->apiKey,
                 'capture' => 1,
-                'reason' => $reason,
-                'users' => $users,
-                'groups' => $groups,
+                'reason'  => $reason,
+                'users'   => $users,
             ]);
 
         return $response->json();
     }
 
     /**
-     * Split Liquidation between Commerces
+     * Split Liquidation — divide la liquidación entre comercios.
      */
-    public function splitLiquidation($orderId, $commerces = [])
+    public function splitLiquidation(string $orderId, array $commerces = []): ?array
     {
-        $token = $this->getBearerToken();
-        if (!$token)
-            return null;
+        $bearer = $this->getBearerToken();
+        if (!$bearer) return null;
 
-        $response = Http::withToken($token)
+        $response = Http::withToken($bearer)
+            ->asJson()
             ->post($this->baseUrl . 'api/v1/orders/liquidation/split', [
-                'order_id' => $orderId,
+                'order_id'  => $orderId,
                 'commerces' => $commerces,
+                'lang'      => 'es',
             ]);
 
         return $response->json();
