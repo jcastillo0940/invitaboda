@@ -6,17 +6,8 @@ import { motion } from 'framer-motion'
 // IMPORTACIÓN AÑADIDA PARA PAYPAL
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js"
 
-// Métodos offline manejados externamente (no pasan por Tilopay)
-// Se agregan al select DESPUÉS de los métodos que devuelve Tilopay
-const OFFLINE_METHODS = [
-    { id: 'ach',   label: 'ACH / Transferencia bancaria' },
-    { id: 'yappy', label: 'Yappy'                        },
-]
-
-const OFFLINE_IDS = OFFLINE_METHODS.map(m => m.id)
-
-// AÑADIDO: Recibe paypalClientId en las props
-export default function Checkout({ plan, amount, orderNumber, user, callbackUrl, paypalClientId }) {
+// AÑADIDO: Recibe planDetails y paymentMethods desde la base de datos
+export default function Checkout({ plan, planDetails, amount, orderNumber, user, callbackUrl, paypalClientId, paymentMethods = [] }) {
     // status: loading | ready | card | offline | paypal | processing | error
     const [status, setStatus]               = useState('loading')
     const [errorMsg, setErrorMsg]           = useState(null)
@@ -24,8 +15,15 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
     const sdkLoaded                         = useRef(false)
     const sdkInitialized                    = useRef(false)
 
-    const planLabel = plan === 'agency' ? 'Master Agency' : 'Elite Planner'
-    const planSub   = plan === 'agency' ? 'Eventos ilimitados y White-Label' : 'Hasta 5 eventos activos'
+    // LECTURA DINÁMICA DE LA BASE DE DATOS
+    // Filtramos qué métodos están habilitados desde el backend
+    const hasTilopay = paymentMethods.some(m => m.identifier === 'tilopay')
+    const hasPaypal  = paymentMethods.some(m => m.identifier === 'paypal')
+    const offlineMethods = paymentMethods.filter(m => !['tilopay', 'paypal'].includes(m.identifier))
+
+    // Leemos los datos del plan desde DB, con fallback a los quemados por compatibilidad
+    const planLabel = planDetails?.name || (plan === 'agency' ? 'Master Agency' : 'Elite Planner')
+    const planSub   = planDetails?.description || (plan === 'agency' ? 'Eventos ilimitados y White-Label' : 'Hasta 5 eventos activos')
 
     const buildRedirectUrl = () => {
         const url = new URL(callbackUrl)
@@ -37,25 +35,32 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
         if (sdkLoaded.current) return
         sdkLoaded.current = true
 
-        if (typeof window.Tilopay !== 'undefined') {
-            fetchTokenAndInit()
-            return
-        }
+        // Si Tilopay está habilitado en DB, cargamos su SDK
+        if (hasTilopay) {
+            if (typeof window.Tilopay !== 'undefined') {
+                fetchTokenAndInit()
+                return
+            }
 
-        const existing = document.getElementById('tilopay-sdk')
-        if (existing) existing.remove()
+            const existing = document.getElementById('tilopay-sdk')
+            if (existing) existing.remove()
 
-        const script   = document.createElement('script')
-        script.id      = 'tilopay-sdk'
-        script.src     = 'https://app.tilopay.com/sdk/v2/sdk_tpay.min.js'
-        script.async   = false
-        script.onload  = () => fetchTokenAndInit()
-        script.onerror = () => {
-            setErrorMsg('No se pudo cargar el SDK de Tilopay.')
-            setStatus('error')
+            const script   = document.createElement('script')
+            script.id      = 'tilopay-sdk'
+            script.src     = 'https://app.tilopay.com/sdk/v2/sdk_tpay.min.js'
+            script.async   = false
+            script.onload  = () => fetchTokenAndInit()
+            script.onerror = () => {
+                setErrorMsg('No se pudo cargar el SDK de Tilopay.')
+                setStatus('error')
+            }
+            document.body.appendChild(script)
+        } else {
+            // Si Tilopay NO está activo, llenamos el dropdown solo con PayPal y Offline
+            populateDropdown([])
+            setStatus('ready')
         }
-        document.body.appendChild(script)
-    }, [])
+    }, [hasTilopay])
 
     const fetchTokenAndInit = async () => {
         if (sdkInitialized.current) return
@@ -91,82 +96,7 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
             console.log('[Tilopay] Init response:', initialize)
             console.log('[Tilopay] Methods:', initialize?.methods)
 
-            // ─── Poblar select con métodos de Tilopay ────────────────────────
-            const select = document.getElementById('tlpy_payment_method')
-
-            if (initialize?.methods) {
-                initialize.methods.forEach(m => {
-                    const opt   = document.createElement('option')
-                    opt.value   = m.id  // ← ID real de Tilopay, no lo tocamos
-                    opt.text    = m.name.toLowerCase() === 'contado'
-                                    ? 'Pago en línea (tarjeta)'
-                                    : m.name
-                    opt.dataset.tilopay = '1'
-                    select.appendChild(opt)
-                })
-            }
-
-            // ─── Agregar métodos offline externos al final del select ─────────
-            OFFLINE_METHODS.forEach(m => {
-                const opt           = document.createElement('option')
-                opt.value           = m.id
-                opt.text            = m.label
-                opt.dataset.offline = '1'
-                select.appendChild(opt)
-            })
-
-            // AÑADIDO: Agregar PayPal como opción al final del select
-            const optPaypal = document.createElement('option')
-            optPaypal.value = 'paypal_method'
-            optPaypal.text  = 'PayPal / Tarjeta de Crédito (Internacional)'
-            optPaypal.dataset.paypal = '1'
-            select.appendChild(optPaypal)
-
-            // ─── Listener de cambio ───────────────────────────────────────────
-            select.addEventListener('change', (e) => {
-                const val         = e.target.value
-                const selectedOpt = e.target.options[e.target.selectedIndex]
-                const isOffline   = selectedOpt?.dataset?.offline === '1'
-                const isPaypal    = selectedOpt?.dataset?.paypal === '1' // AÑADIDO
-                const label       = selectedOpt?.text || ''
-
-                console.log('[Tilopay] Select change → value:', val, '| isOffline:', isOffline)
-
-                if (!val) {
-                    setStatus('ready')
-                    setSelectedMethod(null)
-                    document.getElementById('tlpy_card_payment_div').style.display  = 'none'
-                    document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
-                    return
-                }
-
-                if (isPaypal) {
-                    // AÑADIDO: Lógica para mostrar solo PayPal
-                    setSelectedMethod({ id: val, label })
-                    setStatus('paypal')
-                    document.getElementById('tlpy_card_payment_div').style.display  = 'none'
-                    document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
-                } else if (isOffline) {
-                    setSelectedMethod({ id: val, label })
-                    setStatus('offline')
-                    document.getElementById('tlpy_card_payment_div').style.display  = 'none'
-                    document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
-                } else {
-                    setSelectedMethod({ id: val, label })
-                    setStatus('card')
-
-                    // Delay para que el SDK de Tilopay procese el cambio primero
-                    setTimeout(() => {
-                        const cardDiv = document.getElementById('tlpy_card_payment_div')
-                        if (cardDiv) cardDiv.style.display = 'block'
-                        document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
-
-                        // Verificar que el SDK registró el valor correctamente
-                        console.log('[Tilopay] After timeout → tlpy_payment_method.value:', document.getElementById('tlpy_payment_method').value)
-                    }, 100)
-                }
-            })
-
+            populateDropdown(initialize?.methods || [])
             setStatus('ready')
 
         } catch (err) {
@@ -176,10 +106,92 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
         }
     }
 
+    // NUEVA FUNCIÓN PARA POBLAR EL SELECTOR DINÁMICAMENTE
+    const populateDropdown = (tilopayMethods) => {
+        const select = document.getElementById('tlpy_payment_method')
+        if (!select) return
+
+        // Clonamos el select para limpiar EventListeners anteriores sin perder el DOM
+        const newSelect = select.cloneNode(false)
+        newSelect.innerHTML = '<option value="">Seleccione método de pago</option>'
+
+        // 1. Agregar Tilopay
+        if (hasTilopay && tilopayMethods.length > 0) {
+            tilopayMethods.forEach(m => {
+                const opt   = document.createElement('option')
+                opt.value   = m.id
+                opt.text    = m.name.toLowerCase() === 'contado' ? 'Pago en línea (Tarjeta)' : m.name
+                opt.dataset.tilopay = '1'
+                newSelect.appendChild(opt)
+            })
+        }
+
+        // 2. Agregar Métodos Offline (Leídos desde DB)
+        offlineMethods.forEach(m => {
+            const opt           = document.createElement('option')
+            opt.value           = m.identifier
+            opt.text            = m.name
+            opt.dataset.offline = '1'
+            opt.dataset.instructions = m.instructions || ''
+            newSelect.appendChild(opt)
+        })
+
+        // 3. Agregar PayPal (Si está habilitado en DB)
+        if (hasPaypal) {
+            const optPaypal = document.createElement('option')
+            optPaypal.value = 'paypal_method'
+            optPaypal.text  = 'PayPal / Tarjeta de Crédito (Internacional)'
+            optPaypal.dataset.paypal = '1'
+            newSelect.appendChild(optPaypal)
+        }
+
+        // 4. Lógica de Cambio
+        newSelect.addEventListener('change', (e) => {
+            const val         = e.target.value
+            const selectedOpt = e.target.options[e.target.selectedIndex]
+            const isOffline   = selectedOpt?.dataset?.offline === '1'
+            const isPaypal    = selectedOpt?.dataset?.paypal === '1'
+            const label       = selectedOpt?.text || ''
+            const instructions= selectedOpt?.dataset?.instructions || ''
+
+            console.log('[Payment] Select change → value:', val)
+
+            if (!val) {
+                setStatus('ready')
+                setSelectedMethod(null)
+                document.getElementById('tlpy_card_payment_div').style.display  = 'none'
+                document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
+                return
+            }
+
+            if (isPaypal) {
+                setSelectedMethod({ id: val, label })
+                setStatus('paypal')
+                document.getElementById('tlpy_card_payment_div').style.display  = 'none'
+                document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
+            } else if (isOffline) {
+                // Pasamos las instrucciones extraídas de la BD
+                setSelectedMethod({ id: val, label, instructions })
+                setStatus('offline')
+                document.getElementById('tlpy_card_payment_div').style.display  = 'none'
+                document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
+            } else {
+                setSelectedMethod({ id: val, label })
+                setStatus('card')
+                setTimeout(() => {
+                    const cardDiv = document.getElementById('tlpy_card_payment_div')
+                    if (cardDiv) cardDiv.style.display = 'block'
+                    document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
+                }, 100)
+            }
+        })
+
+        // Reemplazamos el select viejo por el nuevo
+        select.parentNode.replaceChild(newSelect, select)
+    }
+
     const handlePay = async () => {
-        // Verificación de seguridad antes de intentar el pago
         const methodValue = document.getElementById('tlpy_payment_method')?.value
-        console.log('[Tilopay] handlePay → tlpy_payment_method.value:', methodValue)
 
         if (!methodValue) {
             setErrorMsg('Por favor selecciona un método de pago.')
@@ -191,7 +203,6 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
 
         try {
             const result = await window.Tilopay.startPayment()
-            console.log('[Tilopay] startPayment result:', result)
 
             if (result?.error || result?.type === 'error') {
                 setErrorMsg(result?.message || result?.error || 'El pago fue rechazado.')
@@ -208,8 +219,6 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
                 setErrorMsg('El pago no pudo completarse. Verifica los datos de tu tarjeta.')
                 setStatus('card')
             }
-            // null/undefined = Tilopay redirigió automáticamente ✓
-
         } catch (err) {
             console.error('[Tilopay] startPayment error:', err)
             setErrorMsg('Error al procesar el pago. Intenta de nuevo.')
@@ -217,10 +226,30 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
         }
     }
 
+    // Construye la lista de Features basándose en los datos de la DB
+    const getFeaturesList = () => {
+        if (planDetails) {
+            const list = []
+            if (planDetails.max_events) list.push(`Hasta ${planDetails.max_events} Eventos Activos`)
+            else list.push('Eventos Ilimitados')
+
+            if (planDetails.feature_custom_site) list.push('Diseños Premium / Web Personalizada')
+            if (planDetails.feature_rsvp) list.push('RSVP Personalizado (Confirmación)')
+            if (planDetails.feature_custom_domain) list.push('Dominio Personalizado')
+            if (planDetails.feature_advanced_reports) list.push('Reportes Avanzados')
+            if (planDetails.feature_export_data) list.push('Exportación de Datos')
+            if (planDetails.feature_provider_integration) list.push('Integración con Proveedores')
+            
+            return list
+        }
+        return plan === 'agency'
+            ? ['Eventos Ilimitados', 'White-Label (Tu Marca)', 'Panel para Clientes', 'Soporte VIP 24/7', 'Dominio Personalizado']
+            : ['Hasta 5 Eventos Activos', 'Diseños Premium', 'RSVP Personalizado', 'Soporte Prioritario']
+    }
+
     const inputClass = "w-full border border-[#E0E0E0] bg-[#F9F9F7] px-4 py-3 text-sm text-[#1A1A1A] focus:outline-none focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]/30 transition-colors"
     const labelClass = "block text-[10px] uppercase tracking-[0.25em] text-[#888888] font-bold mb-2"
 
-    // AÑADIDO: Incluimos 'paypal' en la lista de estados válidos para mostrar el formulario base
     const showSdkForm = ['ready', 'card', 'processing', 'paypal'].includes(status)
 
     return (
@@ -255,10 +284,7 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
                                     </div>
                                 </div>
                                 <ul className="space-y-3 flex-1">
-                                    {(plan === 'agency'
-                                        ? ['Eventos Ilimitados', 'White-Label (Tu Marca)', 'Panel para Clientes', 'Soporte VIP 24/7', 'Dominio Personalizado']
-                                        : ['Hasta 5 Eventos Activos', 'Diseños Premium', 'RSVP Personalizado', 'Soporte Prioritario']
-                                    ).map((f, i) => (
+                                    {getFeaturesList().map((f, i) => (
                                         <li key={i} className="flex items-center gap-3 text-sm text-[#999]">
                                             <svg className="w-4 h-4 text-[#C5A059] shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                                 <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
@@ -306,7 +332,7 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
                                     </div>
                                 )}
 
-                                {/* ── OFFLINE: ACH / Yappy ── */}
+                                {/* ── OFFLINE: ACH / Yappy (Dinámico) ── */}
                                 {status === 'offline' && (
                                     <motion.div
                                         initial={{ opacity: 0, y: 10 }}
@@ -323,13 +349,13 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
                                             Pago pendiente de verificación
                                         </h3>
                                         <p className="text-center text-[#999] text-xs leading-relaxed mt-2 mb-5 max-w-xs mx-auto">
-                                            Seleccionaste <span className="text-[#C5A059] font-semibold">{selectedMethod?.label}</span>. Una vez que realices el pago, nuestro equipo lo verificará y activará tu plan en menos de 24 horas.
+                                            {selectedMethod?.instructions || `Seleccionaste ${selectedMethod?.label}. Una vez que realices el pago, nuestro equipo lo verificará y activará tu plan en menos de 24 horas.`}
                                         </p>
 
                                         <div className="bg-[#F9F9F7] border border-[#E0E0E0] p-4 mb-5 text-xs space-y-3">
                                             {[
                                                 ['Plan',   planLabel],
-                                                ['Monto',  `$${amount} USD/mes`],
+                                                ['Monto',  `$${amount} USD`],
                                                 ['Método', selectedMethod?.label],
                                                 ['Orden',  orderNumber],
                                                 ['Email',  user?.email],
@@ -367,7 +393,7 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
                                     </p>
                                     <div className="payFormTilopay space-y-6">
 
-                                        {/* Select de Tilopay — con IDs reales + offline al final */}
+                                        {/* Select Dinámico */}
                                         <div>
                                             <label className={labelClass}>Método de pago</label>
                                             <select
@@ -380,7 +406,6 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
                                         </div>
 
                                         {/* ── Campos tarjeta (Tilopay los usa internamente) ── */}
-                                        {/* FIX: display:none al inicio — el SDK lo muestra al seleccionar */}
                                         <div id="tlpy_card_payment_div" className="space-y-6" style={{ display: 'none' }}>
                                             <div id="saved-cards-wrapper" style={{ display: 'none' }}>
                                                 <label className={labelClass}>Tarjetas guardadas</label>
@@ -419,7 +444,7 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
                                             </button>
                                         )}
 
-                                        {/* AÑADIDO: Botones de PayPal (Solo se muestran si se seleccionó la opción) */}
+                                        {/* Botones de PayPal (Solo se muestran si se seleccionó la opción) */}
                                         {status === 'paypal' && (
                                             <div className="mt-2">
                                                 <PayPalScriptProvider options={{ "client-id": paypalClientId, currency: "USD" }}>
@@ -451,7 +476,7 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl,
                                         )}
 
                                         <p className="text-center text-[10px] text-[#AAAAAA] uppercase tracking-widest mt-4">
-                                            Pago seguro procesado por {status === 'paypal' ? 'PayPal' : 'Tilopay'}
+                                            Pago seguro procesado por {status === 'paypal' ? 'PayPal' : (status === 'offline' ? 'transferencia' : 'Tilopay')}
                                         </p>
                                     </div>
                                 </div>

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm } from '@inertiajs/react';
-import { Save, Settings, CreditCard, DollarSign, Globe } from 'lucide-react';
+import { Head, useForm, router } from '@inertiajs/react';
+import { Save, CreditCard, DollarSign, Globe, CheckCircle2, XCircle } from 'lucide-react';
 
 const FieldGroup = ({ title, icon: Icon, children }) => (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -29,21 +29,30 @@ const Field = ({ label, description, children }) => (
     </div>
 );
 
-export default function AdminSettings({ auth, settings }) {
+// Agregamos paymentMethods a las props que recibe el componente
+export default function AdminSettings({ auth, settings, paymentMethods }) {
     const s = (key) => settings[key]?.value ?? '';
 
-    const { data, setData, put, processing, errors, recentlySuccessful } = useForm({
+    // Eliminamos los precios del formulario general
+    const { data, setData, put, processing, recentlySuccessful } = useForm({
         site_name: s('site_name'),
         contact_email: s('contact_email'),
         currency: s('currency'),
         payment_mode: s('payment_mode'),
-        price_basic: s('price_basic'),
-        price_premium: s('price_premium'),
     });
 
     const submit = (e) => {
         e.preventDefault();
-        put(route('admin.settings.update'));
+        put(route('admin.settings.update'), { preserveScroll: true });
+    };
+
+    // Función que envía el clic del switch al backend sin recargar la página
+    const togglePaymentMethod = (methodId, currentState) => {
+        router.put(route('admin.settings.payment-methods.toggle', methodId), {
+            is_active: !currentState
+        }, {
+            preserveScroll: true,
+        });
     };
 
     return (
@@ -85,9 +94,9 @@ export default function AdminSettings({ auth, settings }) {
                             </Field>
                         </FieldGroup>
 
-                        {/* Pagos */}
-                        <FieldGroup title="Configuración de Pagos" icon={CreditCard}>
-                            <Field label="Divisa" description="Código ISO 4217 (USD, CRC, EUR)">
+                        {/* Opciones Generales de Pago */}
+                        <FieldGroup title="Opciones Generales de Pago" icon={DollarSign}>
+                            <Field label="Divisa Principal" description="Código ISO 4217 (ej. USD)">
                                 <input
                                     type="text"
                                     value={data.currency}
@@ -96,7 +105,7 @@ export default function AdminSettings({ auth, settings }) {
                                     maxLength={3}
                                 />
                             </Field>
-                            <Field label="Modo de Pago" description="Sandbox para pruebas, Production para cobros reales">
+                            <Field label="Entorno de Transacciones" description="Sandbox para pruebas, Production para cobros reales">
                                 <select
                                     value={data.payment_mode}
                                     onChange={e => setData('payment_mode', e.target.value)}
@@ -108,44 +117,45 @@ export default function AdminSettings({ auth, settings }) {
                             </Field>
                         </FieldGroup>
 
-                        {/* Precios */}
-                        <FieldGroup title="Precios" icon={DollarSign}>
-                            <Field label="Precio Plan Básico" description="Precio mensual. 0 = gratis">
-                                <div className="relative">
-                                    <span className="absolute left-0 bottom-2 text-gray-400 text-sm">$</span>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={data.price_basic}
-                                        onChange={e => setData('price_basic', e.target.value)}
-                                        className="w-full border-0 border-b border-[#E0E0E0] focus:border-[#C5A059] focus:ring-0 pb-2 text-sm font-serif pl-5"
-                                    />
-                                </div>
-                            </Field>
-                            <Field label="Precio Plan Premium" description="Precio mensual del plan de pago">
-                                <div className="relative">
-                                    <span className="absolute left-0 bottom-2 text-gray-400 text-sm">$</span>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={data.price_premium}
-                                        onChange={e => setData('price_premium', e.target.value)}
-                                        className="w-full border-0 border-b border-[#E0E0E0] focus:border-[#C5A059] focus:ring-0 pb-2 text-sm font-serif pl-5"
-                                    />
-                                </div>
-                            </Field>
+                        {/* Pasarelas de Pago Dinámicas */}
+                        <FieldGroup title="Pasarelas de Pago Habilitadas" icon={CreditCard}>
+                            <div className="space-y-4">
+                                {paymentMethods && paymentMethods.map((method) => (
+                                    <div key={method.id} className={`flex items-center justify-between p-5 rounded-xl border transition-all ${method.is_active ? 'bg-white border-green-100 shadow-sm' : 'bg-gray-50 border-gray-100 opacity-60'}`}>
+                                        <div className="flex items-center gap-4">
+                                            {method.is_active ? (
+                                                <CheckCircle2 className="w-6 h-6 text-green-500" />
+                                            ) : (
+                                                <XCircle className="w-6 h-6 text-gray-300" />
+                                            )}
+                                            <div>
+                                                <h4 className="font-serif text-[#1A1A1A]">{method.name}</h4>
+                                                <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">{method.identifier}</p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => togglePaymentMethod(method.id, method.is_active)}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${method.is_active ? 'bg-[#C5A059]' : 'bg-gray-200'}`}
+                                        >
+                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${method.is_active ? 'translate-x-6' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+                                ))}
+                                {!paymentMethods || paymentMethods.length === 0 ? (
+                                    <p className="text-sm text-gray-400 italic">No hay métodos de pago configurados.</p>
+                                ) : null}
+                            </div>
                         </FieldGroup>
 
-                        <div className="flex justify-end">
+                        <div className="flex justify-end pt-4">
                             <button
                                 type="submit"
                                 disabled={processing}
                                 className="bg-[#1A1A1A] text-white px-10 py-4 rounded-xl uppercase tracking-[0.3em] text-[10px] font-bold hover:bg-[#C5A059] hover:shadow-lg hover:shadow-[#C5A059]/20 transition-all duration-500 flex items-center gap-2 disabled:opacity-60"
                             >
                                 <Save className="w-4 h-4" />
-                                {processing ? 'Guardando...' : 'Guardar Configuración'}
+                                {processing ? 'Guardando...' : 'Guardar Opciones Generales'}
                             </button>
                         </div>
 

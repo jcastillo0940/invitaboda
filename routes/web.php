@@ -60,8 +60,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/tilopay/token', [SubscriptionController::class, 'getTilopayToken'])->name('tilopay.token');
     Route::get('/payment/callback', [SubscriptionController::class, 'paymentCallback'])->name('payment.callback');
     Route::get('/payment/success', [SubscriptionController::class, 'paymentSuccess'])->name('payment.success');
-    
-    // RUTA NUEVA: PayPal Success Callback
     Route::post('/paypal/success', [SubscriptionController::class, 'paypalSuccess'])->name('paypal.success');
 });
 
@@ -69,8 +67,14 @@ Route::middleware('auth')->group(function () {
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('dashboard');
     Route::resource('/designs', \App\Http\Controllers\Admin\DesignController::class)->names('designs');
+    
+    // Configuración General y Métodos de Pago
     Route::get('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'index'])->name('settings');
     Route::put('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'update'])->name('settings.update');
+    Route::put('/settings/payment-methods/{paymentMethod}/toggle', [\App\Http\Controllers\Admin\SettingController::class, 'togglePaymentMethod'])->name('settings.payment-methods.toggle');
+
+    // CRUD DE PLANES (NUEVO)
+    Route::resource('/plans', \App\Http\Controllers\Admin\PlanController::class);
 });
 
 require __DIR__ . '/auth.php';

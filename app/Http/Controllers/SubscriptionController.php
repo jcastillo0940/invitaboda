@@ -8,6 +8,8 @@ use Inertia\Inertia;
 
 use App\Services\TilopayService;
 use App\Models\Order;
+use App\Models\Plan;           // <-- Importamos Plan
+use App\Models\PaymentMethod; // <-- Importamos PaymentMethod
 use Illuminate\Support\Str;
 
 class SubscriptionController extends Controller
@@ -21,15 +23,22 @@ class SubscriptionController extends Controller
 
     public function pricing()
     {
+        // Extraemos los planes activos desde la base de datos
+        $plans = Plan::where('is_active', true)->orderBy('sort_order')->get();
+
         return Inertia::render('Agency/Pricing', [
-            'user' => auth()->user()
+            'user' => auth()->user(),
+            'plans' => $plans // Mandamos los planes a React
         ]);
     }
 
     public function checkout(Request $request)
     {
-        $plan        = $request->input('plan');
-        $amount      = $plan === 'agency' ? 49.99 : 19.99;
+        // Leemos el plan directamente desde la BD
+        $planSlug    = $request->input('plan');
+        $plan        = Plan::where('slug', $planSlug)->where('is_active', true)->firstOrFail();
+        
+        $amount      = $plan->price;
         $orderNumber = 'INV-' . strtoupper(Str::random(10));
 
         Order::create([
@@ -38,17 +47,24 @@ class SubscriptionController extends Controller
             'amount'       => $amount,
             'currency'     => 'USD',
             'status'       => 'pending',
-            'type'         => $plan === 'agency' ? 'agency' : 'elite',
+            'type'         => $plan->slug,
         ]);
 
+        // Extraemos SOLO los métodos de pago que están activos Y que aplican para este plan
+        $activeMethods = PaymentMethod::where('is_active', true)->orderBy('sort_order')->get();
+        $allowedMethods = $activeMethods->filter(function ($method) use ($plan) {
+            return $method->isAvailableForPlan($plan->slug);
+        })->values();
+
         return Inertia::render('Agency/Checkout', [
-            'plan'           => $plan,
+            'plan'           => $plan->slug, // Pasamos el slug como antes para mantener compatibilidad temporal
+            'planDetails'    => $plan,       // Pasamos los detalles completos del plan
             'amount'         => $amount,
             'orderNumber'    => $orderNumber,
             'user'           => auth()->user(),
             'callbackUrl'    => route('payment.callback'),
-            // Enviamos el client_id de PayPal a la vista de React
             'paypalClientId' => config('services.paypal.client_id'),
+            'paymentMethods' => $allowedMethods, // <-- Pasamos los métodos de pago filtrados
         ]);
     }
 
