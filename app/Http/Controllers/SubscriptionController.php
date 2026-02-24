@@ -42,11 +42,13 @@ class SubscriptionController extends Controller
         ]);
 
         return Inertia::render('Agency/Checkout', [
-            'plan'        => $plan,
-            'amount'      => $amount,
-            'orderNumber' => $orderNumber,
-            'user'        => auth()->user(),
-            'callbackUrl' => route('payment.callback'),
+            'plan'           => $plan,
+            'amount'         => $amount,
+            'orderNumber'    => $orderNumber,
+            'user'           => auth()->user(),
+            'callbackUrl'    => route('payment.callback'),
+            // Enviamos el client_id de PayPal a la vista de React
+            'paypalClientId' => config('services.paypal.client_id'),
         ]);
     }
 
@@ -142,13 +144,14 @@ class SubscriptionController extends Controller
 
         $isReallyPaid = $this->tilopay->verifyPayment($orderNumber);
 
-        // ─── PAGO EXITOSO ─────────────────────────────────────────────────────
+        // ─── PAGO EXITOSO (TILOPAY) ───────────────────────────────────────────
         if ($responseCode == '1' && $isReallyPaid) {
-            Log::info("✅ Pago exitoso para orden: {$orderNumber}");
+            Log::info("✅ Pago exitoso con Tilopay para orden: {$orderNumber}");
 
             if ($order->status !== 'completed') {
                 $order->update([
                     'status'          => 'completed',
+                    'payment_method'  => 'tilopay',
                     'payment_details' => $request->all(),
                 ]);
 
@@ -164,8 +167,8 @@ class SubscriptionController extends Controller
             ]);
         }
 
-        // ─── PAGO FALLIDO ─────────────────────────────────────────────────────
-        Log::warning("❌ Pago fallido o no verificado", [
+        // ─── PAGO FALLIDO (TILOPAY) ───────────────────────────────────────────
+        Log::warning("❌ Pago fallido o no verificado con Tilopay", [
             'order'        => $orderNumber,
             'responseCode' => $responseCode,
             'isReallyPaid' => $isReallyPaid,
@@ -174,12 +177,68 @@ class SubscriptionController extends Controller
         if ($order->status === 'pending') {
             $order->update([
                 'status'          => 'failed',
+                'payment_method'  => 'tilopay',
                 'payment_details' => $request->all(),
             ]);
         }
 
         return redirect()->route('subscriptions.pricing')
             ->with('error', 'El pago no pudo ser verificado o fue rechazado.');
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // NUEVO MÉTODO: Callback para cuando se procesa un pago exitoso con PAYPAL
+    // ────────────────────────────────────────────────────────────────────────
+    public function paypalSuccess(Request $request)
+    {
+        $request->validate([
+            'paypal_order_id' => 'required|string',
+            'internal_order'  => 'required|string', // El número de orden generado en checkout()
+            'status'          => 'required|string',
+        ]);
+
+        if ($request->status === 'COMPLETED') {
+            
+            $order = Order::with('user')
+                          ->where('order_number', $request->internal_order)
+                          ->where('user_id', auth()->id())
+                          ->first();
+
+            if (!$order) {
+                Log::error("PayPal Callback: Orden interna {$request->internal_order} no encontrada.");
+                return back()->with('error', 'Orden no encontrada.');
+            }
+
+            if ($order->status !== 'completed') {
+                $order->update([
+                    'status'          => 'completed',
+                    'payment_method'  => 'paypal',
+                    'payment_details' => [
+                        'paypal_order_id' => $request->paypal_order_id,
+                        'payer_id'        => $request->payer_id ?? null,
+                    ],
+                ]);
+
+                $order->user->update([
+                    'plan'            => $order->type,
+                    'plan_expires_at' => now()->addMonth(),
+                ]);
+            }
+
+            Log::info("✅ Pago exitoso con PayPal para orden: {$order->order_number}");
+
+            return redirect()->route('payment.success', [
+                'order' => $order->order_number,
+            ]);
+        }
+
+        Log::warning("❌ Intento de pago PayPal fallido o incompleto", [
+            'paypal_order_id' => $request->paypal_order_id,
+            'internal_order'  => $request->internal_order,
+            'status'          => $request->status,
+        ]);
+
+        return back()->with('error', 'El pago con PayPal no pudo ser verificado.');
     }
 
     /**
@@ -214,6 +273,7 @@ class SubscriptionController extends Controller
                 'currency'        => $order->currency,
                 'type'            => $order->type,
                 'status'          => $order->status,
+                'payment_method'  => $order->payment_method ?? 'No especificado',
                 'created_at'      => $order->created_at->format('d/m/Y H:i'),
                 'payment_details' => $order->payment_details,
             ],

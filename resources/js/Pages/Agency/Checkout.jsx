@@ -3,6 +3,8 @@ import axios from 'axios'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Head, router } from '@inertiajs/react'
 import { motion } from 'framer-motion'
+// IMPORTACIÓN AÑADIDA PARA PAYPAL
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js"
 
 // Métodos offline manejados externamente (no pasan por Tilopay)
 // Se agregan al select DESPUÉS de los métodos que devuelve Tilopay
@@ -13,8 +15,9 @@ const OFFLINE_METHODS = [
 
 const OFFLINE_IDS = OFFLINE_METHODS.map(m => m.id)
 
-export default function Checkout({ plan, amount, orderNumber, user, callbackUrl }) {
-    // status: loading | ready | card | offline | processing | error
+// AÑADIDO: Recibe paypalClientId en las props
+export default function Checkout({ plan, amount, orderNumber, user, callbackUrl, paypalClientId }) {
+    // status: loading | ready | card | offline | paypal | processing | error
     const [status, setStatus]               = useState('loading')
     const [errorMsg, setErrorMsg]           = useState(null)
     const [selectedMethod, setSelectedMethod] = useState(null)
@@ -112,11 +115,19 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl 
                 select.appendChild(opt)
             })
 
+            // AÑADIDO: Agregar PayPal como opción al final del select
+            const optPaypal = document.createElement('option')
+            optPaypal.value = 'paypal_method'
+            optPaypal.text  = 'PayPal / Tarjeta de Crédito (Internacional)'
+            optPaypal.dataset.paypal = '1'
+            select.appendChild(optPaypal)
+
             // ─── Listener de cambio ───────────────────────────────────────────
             select.addEventListener('change', (e) => {
                 const val         = e.target.value
                 const selectedOpt = e.target.options[e.target.selectedIndex]
                 const isOffline   = selectedOpt?.dataset?.offline === '1'
+                const isPaypal    = selectedOpt?.dataset?.paypal === '1' // AÑADIDO
                 const label       = selectedOpt?.text || ''
 
                 console.log('[Tilopay] Select change → value:', val, '| isOffline:', isOffline)
@@ -129,7 +140,13 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl 
                     return
                 }
 
-                if (isOffline) {
+                if (isPaypal) {
+                    // AÑADIDO: Lógica para mostrar solo PayPal
+                    setSelectedMethod({ id: val, label })
+                    setStatus('paypal')
+                    document.getElementById('tlpy_card_payment_div').style.display  = 'none'
+                    document.getElementById('tlpy_yappy_payment_div').style.display = 'none'
+                } else if (isOffline) {
                     setSelectedMethod({ id: val, label })
                     setStatus('offline')
                     document.getElementById('tlpy_card_payment_div').style.display  = 'none'
@@ -203,7 +220,8 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl 
     const inputClass = "w-full border border-[#E0E0E0] bg-[#F9F9F7] px-4 py-3 text-sm text-[#1A1A1A] focus:outline-none focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059]/30 transition-colors"
     const labelClass = "block text-[10px] uppercase tracking-[0.25em] text-[#888888] font-bold mb-2"
 
-    const showSdkForm = ['ready', 'card', 'processing'].includes(status)
+    // AÑADIDO: Incluimos 'paypal' en la lista de estados válidos para mostrar el formulario base
+    const showSdkForm = ['ready', 'card', 'processing', 'paypal'].includes(status)
 
     return (
         <AuthenticatedLayout
@@ -401,8 +419,39 @@ export default function Checkout({ plan, amount, orderNumber, user, callbackUrl 
                                             </button>
                                         )}
 
-                                        <p className="text-center text-[10px] text-[#AAAAAA] uppercase tracking-widest">
-                                            Pago seguro procesado por Tilopay
+                                        {/* AÑADIDO: Botones de PayPal (Solo se muestran si se seleccionó la opción) */}
+                                        {status === 'paypal' && (
+                                            <div className="mt-2">
+                                                <PayPalScriptProvider options={{ "client-id": paypalClientId, currency: "USD" }}>
+                                                    <PayPalButtons 
+                                                        style={{ layout: "vertical", color: "gold", shape: "rect", label: "pay" }}
+                                                        createOrder={(data, actions) => {
+                                                            return actions.order.create({
+                                                                purchase_units: [{
+                                                                    amount: { value: amount },
+                                                                    description: `Plan ${planLabel} - Invitaboda`,
+                                                                    custom_id: orderNumber
+                                                                }]
+                                                            });
+                                                        }}
+                                                        onApprove={(data, actions) => {
+                                                            setStatus('processing');
+                                                            return actions.order.capture().then((details) => {
+                                                                router.post(route('paypal.success'), {
+                                                                    paypal_order_id: data.orderID,
+                                                                    internal_order: orderNumber,
+                                                                    status: details.status,
+                                                                    amount: amount
+                                                                });
+                                                            });
+                                                        }}
+                                                    />
+                                                </PayPalScriptProvider>
+                                            </div>
+                                        )}
+
+                                        <p className="text-center text-[10px] text-[#AAAAAA] uppercase tracking-widest mt-4">
+                                            Pago seguro procesado por {status === 'paypal' ? 'PayPal' : 'Tilopay'}
                                         </p>
                                     </div>
                                 </div>

@@ -1,7 +1,7 @@
 import React from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
-import { LayoutDashboard, Palette, Users, DollarSign, Plus } from 'lucide-react';
+import { LayoutDashboard, Palette, Users, DollarSign, Plus, ClipboardList, Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Dashboard({ auth, stats }) {

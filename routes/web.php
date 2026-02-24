@@ -8,10 +8,10 @@ use Inertia\Inertia;
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
-        'canLogin'       => Route::has('login'),
-        'canRegister'    => Route::has('register'),
+        'canLogin'        => Route::has('login'),
+        'canRegister'     => Route::has('register'),
         'laravelVersion' => Application::VERSION,
-        'phpVersion'     => PHP_VERSION,
+        'phpVersion'      => PHP_VERSION,
     ]);
 });
 
@@ -60,6 +60,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/tilopay/token', [SubscriptionController::class, 'getTilopayToken'])->name('tilopay.token');
     Route::get('/payment/callback', [SubscriptionController::class, 'paymentCallback'])->name('payment.callback');
     Route::get('/payment/success', [SubscriptionController::class, 'paymentSuccess'])->name('payment.success');
+    
+    // RUTA NUEVA: PayPal Success Callback
+    Route::post('/paypal/success', [SubscriptionController::class, 'paypalSuccess'])->name('paypal.success');
 });
 
 // ── Admin ─────────────────────────────────────────────────────────────────────

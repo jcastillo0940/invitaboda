@@ -41,5 +41,11 @@ return [
     'password'    => env('TILOPAY_PASSWORD'),
     'environment' => env('TILOPAY_ENVIRONMENT', 'sandbox'),
 ],
+// Al final del array
+    'paypal' => [
+        'client_id' => env('PAYPAL_CLIENT_ID'),
+        'secret' => env('PAYPAL_SECRET'),
+        'mode' => env('PAYPAL_MODE', 'sandbox'),
+    ],
 
 ];
