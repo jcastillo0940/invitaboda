@@ -97,6 +97,10 @@ export default function Invitation({ event, guestGroup }) {
                 enabled={designData.envelopeAnimation?.enabled}
                 onOpen={() => setIsEnvelopeOpen(true)}
                 mainColor={designData.mainColor}
+                // --- NUEVAS PROPS PARA LA CARTA ZOOM-IN ---
+                groomName={event.name?.split('&')[0]?.trim()}
+                brideName={event.name?.split('&')[1]?.trim()}
+                coverImage={designData.heroImageUrl}
             />
 
             <AnimatePresence>

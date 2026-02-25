@@ -13,6 +13,9 @@ return new class extends Migration
     {
         Schema::create('settings', function (Blueprint $table) {
             $table->id();
+            $table->string('key')->unique(); // Identificador de la configuración (ej: site_name)
+            $table->text('value')->nullable(); // Valor de la configuración
+            $table->string('group')->default('general'); // Grupo para organizar (opcional)
             $table->timestamps();
         });
     }
