@@ -8,21 +8,27 @@ use App\Models\Design;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests; // Necesario para usar $this->authorize
 
 class EventController extends Controller
 {
+    use AuthorizesRequests;
+
     public function index()
     {
-        $events = Event::where('user_id', auth()->id())->latest()->get();
+        $user = auth()->user();
+        $events = Event::where('user_id', $user->id)->latest()->get();
+        
         return Inertia::render('Events/Index', [
-            'events' => $events
+            'events' => $events,
+            // Enviamos el permiso al frontend para bloquear el botón proactivamente
+            'canCreate' => $user->can('create', Event::class),
         ]);
     }
 
-    // --- 🚨 AQUÍ ESTÁ EL MÉTODO QUE FALTABA (Corrige el Error 500) ---
     public function create()
     {
-        // Verificamos si tiene permisos para crear más eventos según nuestra Policy
+        // Verifica la Policy y lanza una excepción 403 con el mensaje personalizado de la Policy
         $this->authorize('create', Event::class);
 
         return Inertia::render('Events/Create');
@@ -30,7 +36,7 @@ class EventController extends Controller
 
     public function store(Request $request)
     {
-        // --- 🚨 CORRECCIÓN CRÍTICA DE SEGURIDAD (Aplicación de Políticas) ---
+        // Doble verificación de seguridad
         $this->authorize('create', Event::class);
 
         $validated = $request->validate([
@@ -97,13 +103,22 @@ class EventController extends Controller
         return back()->with('success', 'Configuración actualizada.');
     }
 
+    public function destroy(Event $event)
+    {
+        $this->authorize('delete', $event);
+        
+        $event->delete();
+
+        return redirect()->route('events.index')->with('success', 'Evento eliminado correctamente.');
+    }
+
     public function guests(Event $event)
     {
         $this->authorize('view', $event);
 
         $event->load(['guestGroups.members']);
 
-        // Basic Stats
+        // Estadísticas básicas para la vista de invitados
         $stats = [
             'total_groups' => $event->guestGroups->count(),
             'total_guests' => $event->guestGroups->sum('total_passes'),
