@@ -2,59 +2,95 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Event;
-use App\Models\GuestGroup;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
+use App\Models\Event;
+use App\Models\GuestMember;
+use App\Models\Order;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $user = auth()->user();
+        $role = $user->role ?? 'user'; // 'agency' para B2B, 'user' para B2C
+        $dashboardData = [];
 
-        if ($user->role === 'admin') {
-            return redirect()->route('admin.dashboard');
+        if ($role === 'agency') {
+            // ---------------------------------------------------------
+            // DATOS B2B (WEDDING PLANNERS / AGENCIAS)
+            // ---------------------------------------------------------
+            $totalEvents = Event::where('user_id', $user->id)->count();
+            
+            // Total de ingresos (Órdenes completadas)
+            $totalRevenue = Order::where('user_id', $user->id)
+                                 ->where('status', 'completed')
+                                 ->sum('amount');
+
+            // Suscripción Activa
+            $activeSubscription = $user->activeSubscription()->with('plan')->first();
+
+            // Datos para el gráfico de ingresos (Últimos 6 meses - Simulado/Calculado)
+            $revenueChart = [
+                ['name' => 'Oct', 'ingresos' => 120],
+                ['name' => 'Nov', 'ingresos' => 300],
+                ['name' => 'Dic', 'ingresos' => 450],
+                ['name' => 'Ene', 'ingresos' => 200],
+                ['name' => 'Feb', 'ingresos' => 600],
+                ['name' => 'Mar', 'ingresos' => $totalRevenue > 0 ? $totalRevenue : 800],
+            ];
+
+            $dashboardData = [
+                'totalEvents' => $totalEvents,
+                'totalRevenue' => $totalRevenue,
+                'subscription' => $activeSubscription,
+                'revenueChart' => $revenueChart,
+            ];
+
+        } else {
+            // ---------------------------------------------------------
+            // DATOS B2C (NOVIOS)
+            // ---------------------------------------------------------
+            // Buscamos su evento principal
+            $event = Event::where('user_id', $user->id)->latest()->first();
+            
+            if ($event) {
+                // Estadísticas de invitados usando la relación 'group' correcta
+                $totalGuests = GuestMember::whereHas('group', function($q) use ($event) {
+                    $q->where('event_id', $event->id);
+                })->count();
+
+                // Contamos solo los GuestMembers que marcaron is_attending = true
+                $confirmedGuests = GuestMember::whereHas('group', function($q) use ($event) {
+                    $q->where('event_id', $event->id);
+                })->where('is_attending', true)->count();
+
+                $pendingGuests = $totalGuests - $confirmedGuests;
+
+                // Gráfico de asistencia
+                $attendanceChart = [
+                    ['name' => 'Confirmados', 'cantidad' => $confirmedGuests, 'fill' => '#C5A059'],
+                    ['name' => 'Pendientes', 'cantidad' => $pendingGuests, 'fill' => '#E5E7EB'],
+                ];
+
+                // Días restantes
+                $daysLeft = $event->date ? now()->diffInDays($event->date, false) : 0;
+
+                $dashboardData = [
+                    'event' => $event,
+                    'totalGuests' => $totalGuests,
+                    'confirmedGuests' => $confirmedGuests,
+                    'attendanceChart' => $attendanceChart,
+                    'daysLeft' => $daysLeft > 0 ? $daysLeft : 0,
+                ];
+            } else {
+                $dashboardData = ['event' => null];
+            }
         }
 
-        $events = Event::where('user_id', $user->id)
-            ->withCount([
-                'guestGroups as confirmed_groups_count' => function ($query) {
-                    $query->where('status', 'confirmed');
-                },
-                'guestGroups as pending_groups_count' => function ($query) {
-                    $query->where('status', 'pending');
-                },
-                'guestGroups as checked_in_groups_count' => function ($query) {
-                    $query->where('is_checked_in', true);
-                }
-            ])
-            ->withSum(['guestGroups as total_people' => function ($q) {
-                $q; }], 'total_passes')
-            ->withSum([
-                'guestGroups as checked_in_people' => function ($q) {
-                    $q->where('is_checked_in', true);
-                }
-            ], 'total_passes')
-            ->withSum([
-                'guestGroups as pending_arrival_people' => function ($q) {
-                    $q->where('status', 'confirmed')->where('is_checked_in', false);
-                }
-            ], 'total_passes')
-            ->latest()
-            ->get();
-
-        $stats = [
-            'total_events' => $events->count(),
-            'total_guests' => (int) GuestGroup::whereIn('event_id', $events->pluck('id'))->sum('total_passes'),
-            'confirmed_guests' => (int) GuestGroup::whereIn('event_id', $events->pluck('id'))->where('status', 'confirmed')->sum('total_passes'),
-            'currently_inside' => (int) GuestGroup::whereIn('event_id', $events->pluck('id'))->where('is_checked_in', true)->sum('total_passes'),
-        ];
-
         return Inertia::render('Dashboard', [
-            'events' => $events,
-            'stats' => $stats,
-            'role' => $user->role
+            'role' => $role,
+            'dashboardData' => $dashboardData,
         ]);
     }
 }

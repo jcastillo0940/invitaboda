@@ -23,6 +23,11 @@ const Icons = {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
         </svg>
     ),
+    Billing: (props) => (
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+        </svg>
+    ),
     Admin: (props) => (
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" {...props}>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -36,6 +41,12 @@ const Icons = {
     Plans: (props) => (
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" {...props}>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        </svg>
+    ),
+    // NUEVO ÍCONO
+    Users: (props) => (
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" {...props}>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
     ),
     SettingsIcon: (props) => (
@@ -111,11 +122,15 @@ export default function AuthenticatedLayout({ header, children }) {
                     <NavItem href={route('events.index')} active={route().current('events.*')} icon={Icons.Events}>
                         Mis Eventos
                     </NavItem>
+                    
                     <NavItem href={route('agency.settings')} active={route().current('agency.settings')} icon={Icons.Agency}>
                         Agencia (B2B)
                     </NavItem>
                     <NavItem href={route('subscriptions.pricing')} active={route().current('subscriptions.*')} icon={Icons.Elite}>
                         Planes Elite
+                    </NavItem>
+                    <NavItem href={route('agency.billing')} active={route().current('agency.billing')} icon={Icons.Billing}>
+                        Facturación
                     </NavItem>
 
                     {user.role === 'admin' && (
@@ -126,18 +141,22 @@ export default function AuthenticatedLayout({ header, children }) {
                             <NavItem href={route('admin.dashboard')} active={route().current('admin.dashboard')} icon={Icons.Admin}>
                                 Panel Admin
                             </NavItem>
-                            
-                            {/* NUEVO ENLACE AL CRUD DE PLANES */}
                             <NavItem href={route('admin.plans.index')} active={route().current('admin.plans.*')} icon={Icons.Plans}>
                                 Planes y Precios
                             </NavItem>
-
+                            {/* NUEVO */}
+                            <NavItem href={route('admin.user-subscriptions.index')} active={route().current('admin.user-subscriptions.*')} icon={Icons.Users}>
+                                Suscripciones de Clientes
+                            </NavItem>
                             <NavItem href={route('admin.designs.index')} active={route().current('admin.designs.*')} icon={Icons.Designs}>
                                 Diseños
                             </NavItem>
                             <NavItem href={route('admin.settings')} active={route().current('admin.settings')} icon={Icons.SettingsIcon}>
                                 Configuración
                             </NavItem>
+                            <NavItem href={route('admin.users.index')} active={route().current('admin.users.*')} icon={Icons.Users}>
+    Gestión de Usuarios
+</NavItem>
                         </>
                     )}
                 </nav>
@@ -207,7 +226,6 @@ export default function AuthenticatedLayout({ header, children }) {
 
                 {/* Contenido Dinámico de la Página */}
                 <main className="flex-1 overflow-y-auto bg-[#F9F9F7] p-4 sm:p-6 lg:p-8 text-gray-900">
-                    {/* Header secundario (si la vista lo envía) */}
                     {header && (
                         <div className="mb-8 border-b border-gray-200 pb-4">
                             {header}
