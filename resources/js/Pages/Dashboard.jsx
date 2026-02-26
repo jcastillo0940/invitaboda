@@ -6,7 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 export default function Dashboard({ auth, role, dashboardData }) {
     
     // ────────────────────────────────────────────────────────────────────────
-    // DASHBOARD B2B (WEDDING PLANNERS / AGENCIAS)
+    // DASHBOARD B2B (WEDDING PLANNERS / AGENCIAS / ADMINS)
     // ────────────────────────────────────────────────────────────────────────
     const renderB2BDashboard = () => {
         const { totalEvents, totalRevenue, subscription, revenueChart } = dashboardData;
@@ -39,7 +39,7 @@ export default function Dashboard({ auth, role, dashboardData }) {
                         <div>
                             <p className="text-sm font-medium text-gray-500">Suscripción</p>
                             <h3 className="text-xl font-bold text-gray-900 mt-1 uppercase">
-                                {subscription ? subscription.plan?.name : 'Gratis'}
+                                {subscription && subscription.plan ? subscription.plan.name : 'Gratis'}
                             </h3>
                             {subscription?.status === 'active' && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 mt-2">Activa</span>
@@ -101,7 +101,7 @@ export default function Dashboard({ auth, role, dashboardData }) {
                 {/* Cabecera del Evento B2C */}
                 <div className="bg-gradient-to-r from-[#1A1A1A] to-[#2A2A2A] rounded-xl p-8 text-white shadow-lg relative overflow-hidden">
                     <div className="relative z-10">
-                        <h2 className="text-3xl font-serif italic mb-2">{event.title}</h2>
+                        <h2 className="text-3xl font-serif italic mb-2">{event.name || event.title || 'Mi Boda'}</h2>
                         <p className="text-gray-300 flex items-center gap-2">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                             {new Date(event.date).toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -123,7 +123,7 @@ export default function Dashboard({ auth, role, dashboardData }) {
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                     <Pie data={attendanceChart} innerRadius={70} outerRadius={90} paddingAngle={5} dataKey="cantidad" animationDuration={1500}>
-                                        {attendanceChart.map((entry, index) => (
+                                        {attendanceChart?.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={entry.fill} />
                                         ))}
                                     </Pie>
@@ -177,7 +177,7 @@ export default function Dashboard({ auth, role, dashboardData }) {
             <Head title="Dashboard" />
 
             <div className="py-8">
-                {role === 'agency' ? renderB2BDashboard() : renderB2CDashboard()}
+                {['planner', 'admin'].includes(role) ? renderB2BDashboard() : renderB2CDashboard()}
             </div>
         </AuthenticatedLayout>
     );

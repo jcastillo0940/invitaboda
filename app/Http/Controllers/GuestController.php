@@ -56,4 +56,52 @@ class GuestController extends Controller
 
         return back()->with('success', 'Invitado eliminado.');
     }
+
+    // --- NUEVO MÉTODO PARA EXPORTACIÓN SEGURA DE DATOS (PUNTO 7) ---
+    public function export(Event $event)
+    {
+        // 1. Auditoría de seguridad: Solo el dueño o admin puede exportar
+        $this->authorize('view', $event);
+
+        $fileName = 'invitados-' . $event->slug . '-' . date('Y-m-d') . '.csv';
+        $groups = GuestGroup::with('members')->where('event_id', $event->id)->get();
+
+        $headers = [
+            "Content-type"        => "text/csv",
+            "Content-Disposition" => "attachment; filename=$fileName",
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0"
+        ];
+
+        $columns = ['Grupo Familiar', 'Pases Totales', 'Pases Confirmados', 'Teléfono', 'Estado', 'Nombres de Confirmados'];
+
+        $callback = function() use($groups, $columns) {
+            $file = fopen('php://output', 'w');
+            
+            // BOM para que Excel lea caracteres latinos (acentos/ñ) correctamente
+            fputs($file, $bom =(chr(0xEF) . chr(0xBB) . chr(0xBF)));
+            fputcsv($file, $columns);
+
+            foreach ($groups as $group) {
+                $confirmedCount = $group->members->where('is_attending', true)->count();
+                $names = $group->members->where('is_attending', true)->pluck('name')->implode(', ');
+
+                $row = [
+                    $group->group_name,
+                    $group->total_passes,
+                    $group->status === 'confirmed' ? $confirmedCount : 0,
+                    $group->contact_phone ?? 'N/A',
+                    ucfirst($group->status),
+                    $names
+                ];
+
+                fputcsv($file, $row);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
 }

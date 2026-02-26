@@ -19,6 +19,37 @@ class EventController extends Controller
         ]);
     }
 
+    // --- 🚨 AQUÍ ESTÁ EL MÉTODO QUE FALTABA (Corrige el Error 500) ---
+    public function create()
+    {
+        // Verificamos si tiene permisos para crear más eventos según nuestra Policy
+        $this->authorize('create', Event::class);
+
+        return Inertia::render('Events/Create');
+    }
+
+    public function store(Request $request)
+    {
+        // --- 🚨 CORRECCIÓN CRÍTICA DE SEGURIDAD (Aplicación de Políticas) ---
+        $this->authorize('create', Event::class);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'date' => 'required|date',
+        ]);
+
+        $event = Event::create([
+            'user_id' => auth()->id(),
+            'name' => $validated['name'],
+            'slug' => Str::slug($validated['name']) . '-' . rand(1000, 9999),
+            'date' => $validated['date'],
+            'is_premium' => false,
+            'settings' => [],
+        ]);
+
+        return redirect()->route('events.index')->with('success', 'Evento creado con éxito.');
+    }
+
     public function edit(Event $event)
     {
         $this->authorize('update', $event);
@@ -51,6 +82,21 @@ class EventController extends Controller
         return back()->with('success', 'Diseño guardado correctamente.');
     }
 
+    public function update(Request $request, Event $event)
+    {
+        $this->authorize('update', $event);
+
+        $validated = $request->validate([
+            'settings' => 'required|array',
+        ]);
+
+        $event->update([
+            'settings' => array_merge($event->settings ?? [], $validated['settings'])
+        ]);
+
+        return back()->with('success', 'Configuración actualizada.');
+    }
+
     public function guests(Event $event)
     {
         $this->authorize('view', $event);
@@ -69,40 +115,6 @@ class EventController extends Controller
             'event' => $event,
             'stats' => $stats
         ]);
-    }
-
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'date' => 'required|date',
-        ]);
-
-        $event = Event::create([
-            'user_id' => auth()->id(),
-            'name' => $validated['name'],
-            'slug' => Str::slug($validated['name']) . '-' . rand(1000, 9999),
-            'date' => $validated['date'],
-            'is_premium' => false,
-            'settings' => [],
-        ]);
-
-        return redirect()->route('events.index')->with('success', 'Evento creado con éxito.');
-    }
-
-    public function update(Request $request, Event $event)
-    {
-        $this->authorize('update', $event);
-
-        $validated = $request->validate([
-            'settings' => 'required|array',
-        ]);
-
-        $event->update([
-            'settings' => array_merge($event->settings ?? [], $validated['settings'])
-        ]);
-
-        return back()->with('success', 'Configuración actualizada.');
     }
 
     public function showPublic($event_slug)

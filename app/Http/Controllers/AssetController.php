@@ -15,24 +15,25 @@ class AssetController extends Controller
     {
         $this->authorize('update', $event);
 
+        // 1. VALIDACIÓN ESTRICTA DE TIPOS DE ARCHIVO
         $request->validate([
-            'file' => 'required|file|max:20480', // 20MB max
+            'file' => 'required|file|mimes:jpg,jpeg,png,webp,heic,mp4,mov,avi,mp3,wav|max:20480', // 20MB max
             'type' => 'required|string|in:hero,gallery,video,music',
         ]);
 
         $file = $request->file('file');
         $type = $request->input('type');
-        $extension = $file->getClientOriginalExtension();
+        
+        // Usamos ->extension() que es más seguro porque Laravel detecta el MIME real del archivo
+        $extension = $file->extension(); 
         $filename = Str::slug($event->name) . '-' . $type . '-' . time() . '.' . $extension;
 
-        $path = "events/{$event->id}/{$type}/{$filename}";
-
         if (in_array(strtolower($extension), ['jpg', 'jpeg', 'png', 'webp', 'heic'])) {
-            // Process Image
+            // --- PROCESAMIENTO DE IMÁGENES ---
             $manager = new ImageManager(new Driver());
             $image = $manager->read($file);
 
-            // Optimization based on type
+            // Optimización basada en el tipo
             if ($type === 'hero') {
                 if ($image->width() > 1920) {
                     $image->scale(width: 1920);
@@ -43,19 +44,22 @@ class AssetController extends Controller
                 }
             }
 
-            // Save to WebP (Modern, light, fast)
-            // quality 75 is the sweet spot for web
+            // Convertir a WebP (Moderno, ligero, rápido)
             $encoded = $image->toWebp(75);
 
-            // New path with webp extension
+            // Nueva ruta con extensión webp
             $path = "events/{$event->id}/{$type}/" . pathinfo($filename, PATHINFO_FILENAME) . ".webp";
 
             Storage::disk('public')->put($path, (string) $encoded);
             $finalPath = Storage::url($path);
+            
         } else {
-            // For video/music, just store as is
-            Storage::disk('public')->putFileAs("events/{$event->id}/{$type}", $file, $filename);
-            $finalPath = Storage::url("events/{$event->id}/{$type}/{$filename}");
+            // --- PROCESAMIENTO DE AUDIO / VIDEO ---
+            // Como la validación de arriba ('mimes') ya filtró archivos maliciosos, 
+            // aquí sabemos con certeza que solo entran mp4, mov, avi, mp3, wav.
+            $path = "events/{$event->id}/{$type}";
+            Storage::disk('public')->putFileAs($path, $file, $filename);
+            $finalPath = Storage::url("{$path}/{$filename}");
         }
 
         return response()->json([

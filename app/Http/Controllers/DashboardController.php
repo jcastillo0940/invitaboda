@@ -13,24 +13,23 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $role = $user->role ?? 'user'; // 'agency' para B2B, 'user' para B2C
+        $role = $user->role; // Ahora los roles reales son: 'admin', 'planner', 'couple', 'guest'
         $dashboardData = [];
 
-        if ($role === 'agency') {
-            // ---------------------------------------------------------
-            // DATOS B2B (WEDDING PLANNERS / AGENCIAS)
-            // ---------------------------------------------------------
+        // ─────────────────────────────────────────────────────────
+        // DATOS B2B (WEDDING PLANNERS / ADMINS)
+        // ─────────────────────────────────────────────────────────
+        if (in_array($role, ['planner', 'admin'])) {
+            
             $totalEvents = Event::where('user_id', $user->id)->count();
             
-            // Total de ingresos (Órdenes completadas)
             $totalRevenue = Order::where('user_id', $user->id)
                                  ->where('status', 'completed')
                                  ->sum('amount');
 
-            // Suscripción Activa
+            // Usamos el método de relación para traer la suscripción activa con su plan
             $activeSubscription = $user->activeSubscription()->with('plan')->first();
 
-            // Datos para el gráfico de ingresos (Últimos 6 meses - Simulado/Calculado)
             $revenueChart = [
                 ['name' => 'Oct', 'ingresos' => 120],
                 ['name' => 'Nov', 'ingresos' => 300],
@@ -47,33 +46,30 @@ class DashboardController extends Controller
                 'revenueChart' => $revenueChart,
             ];
 
-        } else {
-            // ---------------------------------------------------------
-            // DATOS B2C (NOVIOS)
-            // ---------------------------------------------------------
-            // Buscamos su evento principal
+        } 
+        // ─────────────────────────────────────────────────────────
+        // DATOS B2C (NOVIOS / COUPLE)
+        // ─────────────────────────────────────────────────────────
+        else {
+            
             $event = Event::where('user_id', $user->id)->latest()->first();
             
             if ($event) {
-                // Estadísticas de invitados usando la relación 'group' correcta
                 $totalGuests = GuestMember::whereHas('group', function($q) use ($event) {
                     $q->where('event_id', $event->id);
                 })->count();
 
-                // Contamos solo los GuestMembers que marcaron is_attending = true
                 $confirmedGuests = GuestMember::whereHas('group', function($q) use ($event) {
                     $q->where('event_id', $event->id);
                 })->where('is_attending', true)->count();
 
                 $pendingGuests = $totalGuests - $confirmedGuests;
 
-                // Gráfico de asistencia
                 $attendanceChart = [
                     ['name' => 'Confirmados', 'cantidad' => $confirmedGuests, 'fill' => '#C5A059'],
                     ['name' => 'Pendientes', 'cantidad' => $pendingGuests, 'fill' => '#E5E7EB'],
                 ];
 
-                // Días restantes
                 $daysLeft = $event->date ? now()->diffInDays($event->date, false) : 0;
 
                 $dashboardData = [
@@ -84,7 +80,13 @@ class DashboardController extends Controller
                     'daysLeft' => $daysLeft > 0 ? $daysLeft : 0,
                 ];
             } else {
-                $dashboardData = ['event' => null];
+                $dashboardData = [
+                    'event' => null,
+                    'totalGuests' => 0,
+                    'confirmedGuests' => 0,
+                    'attendanceChart' => [],
+                    'daysLeft' => 0,
+                ];
             }
         }
 

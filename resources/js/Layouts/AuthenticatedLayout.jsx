@@ -43,7 +43,6 @@ const Icons = {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
         </svg>
     ),
-    // NUEVO ÍCONO
     Users: (props) => (
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" {...props}>
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -57,7 +56,6 @@ const Icons = {
     ),
 };
 
-// NavItem actualizado con colores dorados y oscuros
 const NavItem = ({ href, active, icon: Icon, children }) => {
     if (!Icon) return null;
 
@@ -90,7 +88,6 @@ export default function AuthenticatedLayout({ header, children }) {
     return (
         <div className="flex h-screen overflow-hidden bg-[#F9F9F7] font-sans selection:bg-[#C5A059] selection:text-white">
 
-            {/* Overlay para móviles */}
             {sidebarOpen && (
                 <div
                     className="fixed inset-0 z-20 bg-black/60 backdrop-blur-sm transition-opacity lg:hidden"
@@ -98,12 +95,10 @@ export default function AuthenticatedLayout({ header, children }) {
                 />
             )}
 
-            {/* Sidebar Lateral (Oscuro y Elegante) */}
             <aside
                 className={`fixed inset-y-0 left-0 z-30 w-64 transform flex-col border-r border-[#2A2A2A] bg-[#1A1A1A] transition-transform duration-300 ease-in-out lg:static lg:flex lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
                     }`}
             >
-                {/* Brand Area */}
                 <div className="flex h-16 shrink-0 items-center px-6 border-b border-[#2A2A2A]">
                     <Link href="/" className="flex items-center gap-3">
                         <div className="w-8 h-8 border border-[#C5A059] flex items-center justify-center font-serif text-[#C5A059] font-bold text-sm">BP</div>
@@ -114,8 +109,11 @@ export default function AuthenticatedLayout({ header, children }) {
                     </Link>
                 </div>
 
-                {/* Enlaces de Navegación */}
                 <nav className="flex-1 space-y-1 overflow-y-auto p-4 scrollbar-hide">
+                    {/* -- SECCIÓN GENERAL -- */}
+                    <div className="mb-2 px-4 text-[10px] uppercase tracking-[0.3em] text-gray-500 font-bold">
+                        General
+                    </div>
                     <NavItem href={route('dashboard')} active={route().current('dashboard')} icon={Icons.Dashboard}>
                         Dashboard
                     </NavItem>
@@ -123,16 +121,25 @@ export default function AuthenticatedLayout({ header, children }) {
                         Mis Eventos
                     </NavItem>
                     
-                    <NavItem href={route('agency.settings')} active={route().current('agency.settings')} icon={Icons.Agency}>
-                        Agencia (B2B)
-                    </NavItem>
-                    <NavItem href={route('subscriptions.pricing')} active={route().current('subscriptions.*')} icon={Icons.Elite}>
-                        Planes Elite
-                    </NavItem>
-                    <NavItem href={route('agency.billing')} active={route().current('agency.billing')} icon={Icons.Billing}>
-                        Facturación
-                    </NavItem>
+                    {/* -- SECCIÓN AGENCIA (SOLO PARA PLANNERS Y ADMINS) -- */}
+                    {(user.role === 'planner' || user.role === 'admin') && (
+                        <>
+                            <div className="mt-8 mb-2 px-4 text-[10px] uppercase tracking-[0.3em] text-gray-500 font-bold">
+                                Módulo Agencia
+                            </div>
+                            <NavItem href={route('agency.settings')} active={route().current('agency.settings')} icon={Icons.Agency}>
+                                Agencia (B2B)
+                            </NavItem>
+                            <NavItem href={route('subscriptions.pricing')} active={route().current('subscriptions.*')} icon={Icons.Elite}>
+                                Planes Elite
+                            </NavItem>
+                            <NavItem href={route('agency.billing')} active={route().current('agency.billing')} icon={Icons.Billing}>
+                                Facturación
+                            </NavItem>
+                        </>
+                    )}
 
+                    {/* -- SECCIÓN ADMIN (SOLO PARA ADMINS) -- */}
                     {user.role === 'admin' && (
                         <>
                             <div className="mt-8 mb-2 px-4 text-[10px] uppercase tracking-[0.3em] text-gray-500 font-bold">
@@ -144,9 +151,8 @@ export default function AuthenticatedLayout({ header, children }) {
                             <NavItem href={route('admin.plans.index')} active={route().current('admin.plans.*')} icon={Icons.Plans}>
                                 Planes y Precios
                             </NavItem>
-                            {/* NUEVO */}
                             <NavItem href={route('admin.user-subscriptions.index')} active={route().current('admin.user-subscriptions.*')} icon={Icons.Users}>
-                                Suscripciones de Clientes
+                                Suscripciones Clientes
                             </NavItem>
                             <NavItem href={route('admin.designs.index')} active={route().current('admin.designs.*')} icon={Icons.Designs}>
                                 Diseños
@@ -155,13 +161,12 @@ export default function AuthenticatedLayout({ header, children }) {
                                 Configuración
                             </NavItem>
                             <NavItem href={route('admin.users.index')} active={route().current('admin.users.*')} icon={Icons.Users}>
-    Gestión de Usuarios
-</NavItem>
+                                Gestión Usuarios
+                            </NavItem>
                         </>
                     )}
                 </nav>
 
-                {/* Pie del Sidebar (Perfil de usuario) */}
                 <div className="border-t border-[#2A2A2A] p-4">
                     <div className="flex items-center">
                         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#C5A059]/10 text-[#C5A059] font-bold border border-[#C5A059]/30">
@@ -179,9 +184,7 @@ export default function AuthenticatedLayout({ header, children }) {
                 </div>
             </aside>
 
-            {/* Contenedor Principal (Claro para lectura) */}
             <div className="flex flex-1 flex-col overflow-hidden">
-                {/* Navbar Superior */}
                 <header className="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center lg:hidden">
                         <button
@@ -224,7 +227,6 @@ export default function AuthenticatedLayout({ header, children }) {
                     </div>
                 </header>
 
-                {/* Contenido Dinámico de la Página */}
                 <main className="flex-1 overflow-y-auto bg-[#F9F9F7] p-4 sm:p-6 lg:p-8 text-gray-900">
                     {header && (
                         <div className="mb-8 border-b border-gray-200 pb-4">
