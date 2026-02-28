@@ -29,10 +29,17 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
+                // --- INICIO DE INTEGRACIÓN SAAS (PASO 4) ---
+                // Enviamos la suscripción activa y los límites del plan de forma segura
+                'subscription' => $user ? $user->activeSubscription : null,
+                'plan' => $user && $user->activeSubscription ? $user->activeSubscription->plan : null,
+                // --- FIN DE INTEGRACIÓN SAAS ---
             ],
         ];
     }

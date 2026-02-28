@@ -71,7 +71,9 @@ export default function Editor({ auth, event, designs }) {
 
     const { data, setData, post, processing, recentlySuccessful } = useForm({
         template_name: event.design?.template_name || 'rojo-dorado-elegante',
-        design_data: mergedData
+        design_data: mergedData,
+        // --- NUEVO: Cargamos los settings directamente en el estado ---
+        settings: event.settings || {}
     });
 
     const [activeSection, setActiveSection] = useState('plantilla');
@@ -98,7 +100,25 @@ export default function Editor({ auth, event, designs }) {
         setData('design_data', newData);
     };
 
-    const submit = (e) => { e?.preventDefault(); post(route('events.update-design', event.id)); };
+    // --- NUEVO: Función auxiliar para manejar los cambios de Settings ---
+    const handleSettingsChange = (field, value) => {
+        setData('settings', { ...data.settings, [field]: value });
+    };
+
+    const submit = async (e) => { 
+        e?.preventDefault(); 
+        
+        // --- NUEVO: Flujo de guardado doble (Seguro y compatible) ---
+        try {
+            // 1. Guardamos el PIN en 'events.update' de forma silenciosa usando Axios
+            await window.axios.put(route('events.update', event.id), { settings: data.settings });
+        } catch (error) {
+            console.error("Error guardando settings:", error);
+        }
+
+        // 2. Guardamos el diseño y disparamos los toast notifications con Inertia
+        post(route('events.update-design', event.id)); 
+    };
 
     const currentIdx  = NAV_SECTIONS.findIndex(s => s.id === activeSection);
     const prevSection = currentIdx > 0 ? NAV_SECTIONS[currentIdx - 1] : null;
@@ -139,13 +159,9 @@ export default function Editor({ auth, event, designs }) {
         >
             <Head title={`Editar ${event.name}`} />
 
-            {/*
-                Sin contenedor h-screen ni overflow-hidden adicional.
-                Todo fluye en el scroll único del AuthenticatedLayout.
-            */}
             <div className="bg-[#F5F4EF] min-h-screen">
 
-                {/* ── NAV DE SECCIONES — sticky bajo el header del layout ── */}
+                {/* ── NAV DE SECCIONES ── */}
                 <div className="sticky top-0 z-20 bg-white border-b border-[#E8E8E2] shadow-sm">
                     <div className="flex items-stretch px-4">
                         {NAV_SECTIONS.map((section) => {
@@ -156,7 +172,6 @@ export default function Editor({ auth, event, designs }) {
                                     key={section.id}
                                     onClick={() => {
                                         setActiveSection(section.id);
-                                        // Scroll suave al inicio del contenido
                                         window.scrollTo({ top: 0, behavior: 'smooth' });
                                     }}
                                     className={`relative flex flex-col items-center gap-1 px-4 py-3 transition-all duration-150 ${
@@ -182,7 +197,6 @@ export default function Editor({ auth, event, designs }) {
                 {/* ── CONTENIDO + PREVIEW SIDE-BY-SIDE ── */}
                 <div className="flex items-start">
 
-                    {/* ── FORMULARIO — crece y no tiene scroll propio ── */}
                     <div className="flex-1 min-w-0">
                         <form onSubmit={submit}>
                             <AnimatePresence mode="wait">
@@ -248,10 +262,36 @@ export default function Editor({ auth, event, designs }) {
                                                 <input type="date" value={data.design_data.date} onChange={e => handleDesignChange('date', e.target.value)} className="fi w-auto" />
                                             </Field>
                                         </Card>
+                                        
                                         <Card title="Opciones">
                                             <Toggle label="Mostrar cuenta regresiva" description="Un contador en tiempo real hasta el gran día" checked={data.design_data.showCountdown} onChange={v => handleDesignChange('showCountdown', v)} />
                                             <Toggle label='Botón "Agendar fecha"' description="Permite agregar el evento al calendario personal" checked={data.design_data.calendarEnabled} onChange={v => handleDesignChange('calendarEnabled', v)} />
                                         </Card>
+
+                                        {/* --- NUEVO: Tarjeta de Privacidad y Seguridad (PIN) --- */}
+                                        <Card title="Privacidad y Seguridad" badge={data.settings.require_pin ? "Protegido 🔒" : "Público 👁️"}>
+                                            <Toggle 
+                                                label="Requerir PIN de acceso" 
+                                                description="Si se activa, la invitación será privada y solicitará contraseña." 
+                                                checked={data.settings.require_pin || false} 
+                                                onChange={v => handleSettingsChange('require_pin', v)} 
+                                            />
+                                            {data.settings.require_pin && (
+                                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-4 overflow-hidden">
+                                                    <Field label="PIN de Acceso (Máximo 10 caracteres)">
+                                                        <input 
+                                                            type="text" 
+                                                            value={data.settings.pin || ''} 
+                                                            onChange={e => handleSettingsChange('pin', e.target.value)} 
+                                                            className="fi font-mono tracking-widest text-lg" 
+                                                            placeholder="Ej: 2026" 
+                                                            maxLength={10} 
+                                                        />
+                                                    </Field>
+                                                </motion.div>
+                                            )}
+                                        </Card>
+
                                         <Card title="Animación de sobre">
                                             <div className="flex items-end gap-6">
                                                 <Field label="Iniciales en el sobre" className="flex-1">

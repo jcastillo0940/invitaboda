@@ -9,10 +9,11 @@ use Illuminate\Support\Str;
 
 class GuestController extends Controller
 {
-    public function store(Request $request, Event $event)
+   public function store(Request $request, Event $event)
     {
         $this->authorize('update', $event);
 
+        // 1. Validamos primero para tener el valor de total_passes limpio y seguro
         $validated = $request->validate([
             'group_name' => 'required|string|max:255',
             'total_passes' => 'required|integer|min:1',
@@ -20,6 +21,13 @@ class GuestController extends Controller
             'members' => 'nullable|array',
             'members.*.name' => 'required_with:members|string|max:255',
         ]);
+
+        // --- INICIO DE PROTECCIÓN DE LÍMITES (CUOTAS) ---
+        // 2. Comparamos los pases solicitados contra el límite del plan a través del Service
+        if (!\App\Services\QuotaService::canAddGuests($request->user(), $event, (int) $validated['total_passes'])) {
+            return back()->withErrors(['error' => 'Has alcanzado el límite máximo de invitados permitidos en tu plan. ¡Mejora tu suscripción para añadir más!']);
+        }
+        // --- FIN DE PROTECCIÓN ---
 
         $group = GuestGroup::create([
             'event_id' => $event->id,
@@ -43,7 +51,6 @@ class GuestController extends Controller
 
         return back()->with('success', 'Invitado registrado correctamente.');
     }
-
     public function destroy(Event $event, GuestGroup $guestGroup)
     {
         $this->authorize('update', $event);

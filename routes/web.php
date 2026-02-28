@@ -49,7 +49,11 @@ Route::middleware('auth')->group(function () {
     // ── Guest Management ─────────────────────────────────────────────────────
     Route::post('events/{event}/guests', [\App\Http\Controllers\GuestController::class, 'store'])->name('guests.store');
     Route::delete('events/{event}/guests/{guestGroup}', [\App\Http\Controllers\GuestController::class, 'destroy'])->name('guests.destroy');
-    Route::get('events/{event}/guests/export', [\App\Http\Controllers\GuestController::class, 'export'])->name('guests.export'); // <-- NUEVA RUTA
+    
+    // <-- RUTA PROTEGIDA POR EL NUEVO MIDDLEWARE DE PLANES -->
+    Route::get('events/{event}/guests/export', [\App\Http\Controllers\GuestController::class, 'export'])
+        ->middleware(\App\Http\Middleware\CheckPlanFeature::class . ':feature_export_data')
+        ->name('guests.export');
 
 
     // ── Table Management ─────────────────────────────────────────────────────
@@ -158,6 +162,18 @@ Route::post('/rsvp/{guest_group}',
 |--------------------------------------------------------------------------
 */
 
+/*
+|--------------------------------------------------------------------------
+| Public Event Page (Catch-All - SIEMPRE AL FINAL)
+|--------------------------------------------------------------------------
+*/
+
+// NUEVA RUTA: Procesar el formulario de PIN
+Route::post('/{event_slug}/verify-pin', 
+    [\App\Http\Controllers\EventController::class, 'verifyPin']
+)->name('event.public.verify-pin');
+
+// RUTA EXISTENTE: Mostrar la invitación o pedir el PIN
 Route::get('/{event_slug}',
     [\App\Http\Controllers\EventController::class, 'showPublic']
 )->name('event.public');
